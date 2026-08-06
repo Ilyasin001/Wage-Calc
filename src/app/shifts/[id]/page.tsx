@@ -11,6 +11,7 @@ import {
 } from "@/lib/format";
 import { Card } from "@/components/ui";
 import { DeleteShiftButton } from "./delete-button";
+import { PaidBadge } from "./paid-badge";
 
 export const metadata = { title: "Shift" };
 
@@ -88,15 +89,7 @@ export default async function ShiftDetailPage({
               </div>
               <div className="text-right">
                 <p className="font-semibold">{formatPence(e.pay.totalPence)}</p>
-                <p
-                  className={`text-xs font-medium ${
-                    e.paid
-                      ? "text-emerald-700 dark:text-emerald-400"
-                      : "text-amber-600 dark:text-amber-400"
-                  }`}
-                >
-                  {e.paid ? "Paid" : "Unpaid"}
-                </p>
+                <PaidBadge entryId={e.entryId} paid={e.paid} />
               </div>
             </li>
           ))}
