@@ -80,5 +80,7 @@ export async function changePassword(
     where: { id: dbUser.id },
     data: { passwordHash: await hash(next.data, 12) },
   });
+  // Log the event, never the value (D17).
+  await logAudit("settings", dbUser.id, "update", { password: "changed" });
   return undefined;
 }

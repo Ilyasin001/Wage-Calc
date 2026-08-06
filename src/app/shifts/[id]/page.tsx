@@ -10,6 +10,7 @@ import {
   formatTime,
 } from "@/lib/format";
 import { Card } from "@/components/ui";
+import { describeAuditChanges } from "@/lib/audit-describe";
 import { DeleteShiftButton } from "./delete-button";
 import { PaidBadge } from "./paid-badge";
 
@@ -30,10 +31,16 @@ export default async function ShiftDetailPage({
 
   const { entries, totalPence } = shiftEntryViews(shift, shift.entries);
   const anyPaid = entries.some((e) => e.paid);
-  const audit = await prisma.auditLog.findMany({
-    where: { entityType: "shift", entityId: shift.id },
-    orderBy: { createdAt: "desc" },
-  });
+  const [audit, allStaff, allLocations] = await Promise.all([
+    prisma.auditLog.findMany({
+      where: { entityType: "shift", entityId: shift.id },
+      orderBy: { createdAt: "desc" },
+    }),
+    prisma.staff.findMany({ select: { id: true, name: true } }),
+    prisma.location.findMany({ select: { id: true, name: true } }),
+  ]);
+  const staffNames = new Map(allStaff.map((s) => [s.id, s.name]));
+  const locationNames = new Map(allLocations.map((l) => [l.id, l.name]));
 
   return (
     <div className="space-y-5">
@@ -122,9 +129,15 @@ export default async function ShiftDetailPage({
                   </span>
                 </p>
                 {a.action === "update" && (
-                  <pre className="overflow-x-auto whitespace-pre-wrap break-all text-slate-500 dark:text-slate-400">
-                    {a.changes}
-                  </pre>
+                  <ul className="list-inside list-disc text-slate-500 dark:text-slate-400">
+                    {describeAuditChanges(
+                      a.changes,
+                      staffNames,
+                      locationNames,
+                    ).map((line, i) => (
+                      <li key={i}>{line}</li>
+                    ))}
+                  </ul>
                 )}
               </li>
             ))}

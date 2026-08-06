@@ -1,0 +1,190 @@
+import { expect, test } from "@playwright/test";
+
+/**
+ * Critical-flow E2E suite (spec §8): one serial journey through the app —
+ * auth, staff, shift creation with live totals, clash rejection, payments
+ * with double-payment protection, paid locking, revert, and reports.
+ */
+
+const EMAIL = "e2e@wagecalc.local";
+const PASSWORD = "e2e-password-123";
+
+test.describe.configure({ mode: "serial" });
+
+test("rejects a wrong password with a generic error", async ({ page }) => {
+  await page.goto("/login");
+  await page.getByLabel("Email").fill(EMAIL);
+  await page.getByLabel("Password").fill("wrong-password");
+  await page.getByRole("button", { name: "Sign in" }).click();
+  await expect(page.getByText("Sign-in failed")).toBeVisible();
+});
+
+test("blocks unauthenticated access to every screen", async ({ page }) => {
+  for (const route of ["/", "/payments", "/history", "/staff", "/settings"]) {
+    await page.goto(route);
+    await expect(page).toHaveURL(/\/login/);
+  }
+});
+
+test("signs in and lands on home", async ({ page }) => {
+  await page.goto("/login");
+  await page.getByLabel("Email").fill(EMAIL);
+  await page.getByLabel("Password").fill(PASSWORD);
+  await page.getByRole("button", { name: "Sign in" }).click();
+  await expect(page.getByRole("heading", { name: "Last 7 days" })).toBeVisible();
+});
+
+test.describe("authenticated journey", () => {
+  // Sign in once per test via storage state would be cleaner; a serial suite
+  // with a helper keeps it simple at this scale.
+  test.beforeEach(async ({ page }) => {
+    await page.goto("/login");
+    const email = page.getByLabel("Email");
+    if (await email.isVisible().catch(() => false)) {
+      await email.fill(EMAIL);
+      await page.getByLabel("Password").fill(PASSWORD);
+      await page.getByRole("button", { name: "Sign in" }).click();
+      await page.waitForURL("**/");
+    }
+  });
+
+  test("creates staff members", async ({ page }) => {
+    for (const [name, role] of [
+      ["Alice Test", "manager"],
+      ["Bob Test", "regular"],
+      ["Cara Test", "regular"],
+    ] as const) {
+      await page.goto("/staff/new");
+      await page.getByLabel("Name").fill(name);
+      await page.getByLabel("Role").selectOption(role);
+      await page.getByRole("button", { name: "Add staff member" }).click();
+      await expect(page.getByRole("link", { name: new RegExp(name) })).toBeVisible();
+    }
+  });
+
+  test("creates a shift with inline venue, supervisor break flip, live total", async ({
+    page,
+  }) => {
+    await page.goto("/shifts/new");
+    // Inline new venue (D15) — with an empty venue list the form already
+    // defaults to "+ New venue…" mode, so just type the name.
+    await page
+      .getByRole("textbox", { name: "New venue name" })
+      .fill("E2E Arena");
+    // 18:00–23:00 defaults, rates seeded £12/£15
+    for (const name of ["Alice Test", "Bob Test", "Cara Test"]) {
+      await page.getByRole("button", { name: `${name} + Add` }).click();
+    }
+    // Make Alice supervisor — her break flips to 0 so she has 5h
+    const aliceCard = page
+      .locator("li")
+      .filter({ has: page.locator("input[name=supervisorPick]") })
+      .filter({ hasText: "Alice Test" });
+    await aliceCard.getByRole("radio").check();
+    // Live total: Alice 5h×£15=75, Bob/Cara 4h×£12=48 → £171
+    await expect(page.getByText("Shift total").locator("..")).toContainText(
+      "£171.00",
+    );
+    await page.getByRole("button", { name: "Save shift" }).click();
+    // Must land on the saved shift's detail page — NOT stay on /shifts/new.
+    await expect(page).toHaveURL(/\/shifts\/(?!new$)[a-z0-9]+$/);
+    await expect(page.getByText("Shift total").locator("..")).toContainText(
+      "£171.00",
+    );
+    await expect(page.getByText("Supervisor").first()).toBeVisible();
+  });
+
+  test("rejects a clashing second shift with a named error", async ({
+    page,
+  }) => {
+    await page.goto("/shifts/new");
+    await page.locator("select").first().selectOption({ label: "E2E Arena" });
+    await page.getByRole("button", { name: "Bob Test + Add" }).click();
+    const bobCard = page
+      .locator("li")
+      .filter({ has: page.locator("input[name=supervisorPick]") })
+      .filter({ hasText: "Bob Test" });
+    await bobCard.getByRole("radio").check();
+    await page.getByRole("button", { name: "Save shift" }).click();
+    await expect(
+      page.getByText(/Bob Test is already on the shift at E2E Arena/),
+    ).toBeVisible();
+  });
+
+  test("payments: owed-only list, mark paid, double-payment protection", async ({
+    page,
+  }) => {
+    const today = new Date().toISOString().slice(0, 10);
+    await page.goto(`/payments?from=${today}&to=${today}`);
+    await expect(page.getByText("Total owed").locator("..")).toContainText(
+      "3 staff",
+    );
+    await expect(page.getByText("£171.00").first()).toBeVisible();
+
+    await page.getByRole("button", { name: "Mark Alice paid" }).click();
+    await page.getByRole("button", { name: /Confirm £75\.00 paid/ }).click();
+    // Alice disappears; total drops to £96 (48+48)
+    await expect(page.getByText("Alice Test")).toHaveCount(0);
+    await expect(page.getByText("Total owed").locator("..")).toContainText(
+      "2 staff",
+    );
+    await expect(page.getByText("£96.00").first()).toBeVisible();
+  });
+
+  test("paid entries are locked in the editor and block deletion", async ({
+    page,
+  }) => {
+    await page.goto("/history");
+    await page.getByRole("link", { name: /E2E Arena/ }).first().click();
+    await expect(
+      page.getByText("This shift has paid entries, so it cannot be deleted."),
+    ).toBeVisible();
+    await page.getByRole("link", { name: "Edit" }).click();
+    await page.waitForURL(/\/edit$/);
+    const aliceCard = page
+      .locator("li")
+      .filter({ has: page.locator("input[name=supervisorPick]") })
+      .filter({ hasText: "Alice Test" });
+    await expect(aliceCard.getByText("Paid — locked")).toBeVisible();
+    // Inputs inside the disabled fieldset must not be editable.
+    await expect(aliceCard.locator("input[type=time]").first()).toBeDisabled();
+  });
+
+  test("revert to unpaid restores editability and deletion", async ({
+    page,
+  }) => {
+    await page.goto("/history");
+    await page.getByRole("link", { name: /E2E Arena/ }).first().click();
+    await page.getByRole("button", { name: "Paid", exact: true }).click();
+    await page.getByRole("button", { name: "Revert to unpaid" }).click();
+    await expect(
+      page.getByRole("button", { name: "Delete shift" }),
+    ).toBeVisible();
+  });
+
+  test("report endpoints return PDF and XLSX", async ({ page }) => {
+    const today = new Date().toISOString().slice(0, 10);
+    const pdf = await page.request.get(
+      `/api/reports?from=${today}&to=${today}&format=pdf`,
+    );
+    expect(pdf.status()).toBe(200);
+    expect(pdf.headers()["content-type"]).toContain("application/pdf");
+    expect((await pdf.body()).length).toBeGreaterThan(1000);
+
+    const xlsx = await page.request.get(
+      `/api/reports?from=${today}&to=${today}&format=xlsx`,
+    );
+    expect(xlsx.status()).toBe(200);
+    expect(xlsx.headers()["content-type"]).toContain("spreadsheetml");
+    expect((await xlsx.body()).length).toBeGreaterThan(1000);
+  });
+
+  test("staff deactivate and reactivate", async ({ page }) => {
+    await page.goto("/staff");
+    await page.getByRole("link", { name: /Cara Test/ }).click();
+    await page.getByRole("button", { name: "Deactivate" }).click();
+    await expect(page.getByText("Deactivated", { exact: true })).toBeVisible();
+    await page.getByRole("button", { name: "Reactivate" }).click();
+    await expect(page.getByRole("button", { name: "Deactivate" })).toBeVisible();
+  });
+});

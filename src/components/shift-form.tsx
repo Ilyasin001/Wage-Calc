@@ -163,7 +163,8 @@ export function ShiftForm({
   function buildPayload(): string {
     return JSON.stringify({
       date,
-      locationId: locationId || undefined,
+      locationId:
+        locationId === "__new__" ? undefined : locationId || undefined,
       newLocationName:
         locationId === "__new__" ? newLocation.trim() || undefined : undefined,
       description: description.trim() || undefined,

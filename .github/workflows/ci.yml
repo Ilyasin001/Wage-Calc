@@ -22,3 +22,7 @@ jobs:
       - run: npm run build
         env:
           DATABASE_URL: "file:./ci.db"
+      - run: npx playwright install --with-deps chromium
+      - run: npx playwright test
+        env:
+          FORCE_COLOR: "0"
