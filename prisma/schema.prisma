@@ -1,7 +1,7 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Get a free hosted Postgres database in seconds: `npx create-db`
+// Wage-Calc schema — see docs/SPECIFICATION.md §4.
+// Dev runs on SQLite; production targets Postgres (Neon) at deployment.
+// Kept portable: no enums / Json columns (unsupported on SQLite) — those
+// fields are strings validated by Zod at the app boundary.
 
 generator client {
   provider = "prisma-client"
@@ -10,4 +10,93 @@ generator client {
 
 datasource db {
   provider = "sqlite"
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  createdAt    DateTime @default(now())
+}
+
+// Singleton row (id always 1): company-wide standard rates.
+model Settings {
+  id                  Int      @id @default(1)
+  baseRatePence       Int
+  supervisorRatePence Int
+  updatedAt           DateTime @updatedAt
+}
+
+model Location {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  createdAt DateTime @default(now())
+  shifts    Shift[]
+}
+
+model Staff {
+  id        String       @id @default(cuid())
+  name      String
+  phone     String?
+  role      String       @default("regular") // regular | supervisor | manager — label only, never affects pay (D5)
+  isActive  Boolean      @default(true)
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+  entries   ShiftEntry[]
+
+  @@index([isActive])
+}
+
+model Shift {
+  id                  String       @id @default(cuid())
+  date                String       // business date "YYYY-MM-DD" (Europe/London) — the day the accountant filed it under
+  locationId          String
+  location            Location     @relation(fields: [locationId], references: [id])
+  description         String?
+  startAt             DateTime
+  endAt               DateTime
+  baseRatePence       Int // snapshot from Settings at creation (D4)
+  supervisorRatePence Int // snapshot from Settings at creation (D4)
+  createdAt           DateTime     @default(now())
+  updatedAt           DateTime     @updatedAt
+  entries             ShiftEntry[]
+
+  @@index([date])
+}
+
+model ShiftEntry {
+  id              String    @id @default(cuid())
+  shiftId         String
+  shift           Shift     @relation(fields: [shiftId], references: [id], onDelete: Cascade)
+  staffId         String
+  staff           Staff     @relation(fields: [staffId], references: [id])
+  // true for the shift's supervisor, null for everyone else — NEVER false.
+  // The composite unique below then admits at most one supervisor per shift
+  // (NULLs are distinct in unique indexes on both SQLite and Postgres),
+  // enforcing D5 at the database level.
+  isSupervisor    Boolean?
+  startAt         DateTime
+  endAt           DateTime
+  breakMinutes    Int       @default(60)
+  additionalPence Int       @default(0)
+  paid            Boolean   @default(false)
+  paidAt          DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@unique([shiftId, staffId])
+  @@unique([shiftId, isSupervisor])
+  @@index([staffId])
+  @@index([paid])
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  entityType String // shift | shiftEntry | staff | location | settings
+  entityId   String
+  action     String // create | update | delete
+  changes    String // JSON: { field: { from, to } } or entity snapshot on create/delete
+  createdAt  DateTime @default(now())
+
+  @@index([entityType, entityId])
 }
