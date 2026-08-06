@@ -7,6 +7,7 @@ const tabs = [
   { href: "/", label: "Home", icon: HomeIcon },
   { href: "/payments", label: "Payments", icon: PoundIcon },
   { href: "/history", label: "History", icon: ClockIcon },
+  { href: "/reports", label: "Reports", icon: DocIcon },
   { href: "/staff", label: "Staff", icon: PeopleIcon },
   { href: "/settings", label: "Settings", icon: CogIcon },
 ] as const;
@@ -63,6 +64,15 @@ function ClockIcon() {
     <svg viewBox="0 0 24 24" className="size-6" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
       <circle cx="12" cy="12" r="9" />
       <path d="M12 7v5l3 2" />
+    </svg>
+  );
+}
+
+function DocIcon() {
+  return (
+    <svg viewBox="0 0 24 24" className="size-6" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M6 3h8l4 4v14H6z" />
+      <path d="M14 3v4h4M9 12h6M9 16h6" />
     </svg>
   );
 }
