@@ -49,7 +49,7 @@ export function PaidBadge({
           type="button"
           disabled={pending}
           onClick={() => setConfirming(false)}
-          className="rounded-md border border-slate-300 px-2 py-1 text-xs dark:border-slate-700"
+          className="rounded-[4px] border border-outline-variant px-2 py-1 text-[11px]"
         >
           Keep
         </button>
@@ -61,7 +61,7 @@ export function PaidBadge({
     <button
       type="button"
       onClick={() => setConfirming(true)}
-      className="text-xs font-medium text-emerald-700 underline decoration-dotted dark:text-emerald-400"
+      className="microlabel text-[11px] text-success underline decoration-dotted"
       title="Tap to revert to unpaid"
     >
       Paid

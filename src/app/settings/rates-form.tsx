@@ -31,8 +31,9 @@ export function RatesForm({
     <form action={formAction} className="space-y-4">
       {state?.error && <ErrorBanner>{state.error}</ErrorBanner>}
       {state?.ok && <SuccessBanner>Rates saved.</SuccessBanner>}
-      <div className="grid grid-cols-2 gap-3">
-        <Field label="Base rate (£/hr)">
+      {/* items-end keeps both inputs aligned if a label wraps. */}
+      <div className="grid grid-cols-2 items-end gap-3">
+        <Field label="Base (£/hr)">
           <TextInput
             name="baseRate"
             inputMode="decimal"
@@ -40,7 +41,7 @@ export function RatesForm({
             defaultValue={baseRate}
           />
         </Field>
-        <Field label="Supervisor rate (£/hr)">
+        <Field label="Supervisor (£/hr)">
           <TextInput
             name="supervisorRate"
             inputMode="decimal"
@@ -49,7 +50,7 @@ export function RatesForm({
           />
         </Field>
       </div>
-      <p className="text-xs text-slate-500 dark:text-slate-400">
+      <p className="text-[12px] text-on-surface-variant">
         New rates apply to shifts created from now on. Existing shifts keep the
         rates they were created with.
       </p>

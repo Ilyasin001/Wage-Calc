@@ -7,8 +7,8 @@ export default function manifest(): MetadataRoute.Manifest {
     description: "Shift wage calculator and payroll record for the accountant",
     start_url: "/",
     display: "standalone",
-    background_color: "#ffffff",
-    theme_color: "#047857",
+    background_color: "#f8f9ff",
+    theme_color: "#f8f9ff",
     icons: [
       {
         src: "/icon.svg",

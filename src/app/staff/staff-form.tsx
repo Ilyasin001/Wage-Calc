@@ -56,7 +56,7 @@ export function StaffForm({
           <option value="manager">Manager</option>
         </Select>
       </Field>
-      <p className="text-xs text-slate-500 dark:text-slate-400">
+      <p className="text-[12px] text-on-surface-variant">
         Role is a label only — it never changes anyone&apos;s pay. The
         supervisor rate comes from the supervisor slot on each shift.
       </p>

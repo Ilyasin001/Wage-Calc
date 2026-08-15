@@ -44,8 +44,10 @@ export default async function PaymentsPage({
   });
 
   return (
-    <div>
-      <h1 className="mb-4 text-xl font-semibold">Payments</h1>
+    <div className="pt-4">
+      <h1 className="mb-4 text-[20px] font-semibold text-on-surface">
+        Payments
+      </h1>
       <PaymentsClient from={from} to={to} shifts={payload} />
     </div>
   );

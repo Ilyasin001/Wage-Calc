@@ -18,10 +18,12 @@ export default async function EditStaffPage({
 
   return (
     <div>
-      <div className="mb-4 flex items-center justify-between">
-        <h1 className="text-xl font-semibold">{staff.name}</h1>
+      <div className="mb-4 flex items-center justify-between pt-4">
+        <h1 className="text-[20px] font-semibold text-on-surface">
+          {staff.name}
+        </h1>
         {!staff.isActive && (
-          <span className="rounded-full bg-slate-200 px-3 py-1 text-xs font-medium text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+          <span className="microlabel rounded-[4px] bg-surface-container-high px-3 py-1 text-on-surface-variant">
             Deactivated
           </span>
         )}
@@ -48,7 +50,7 @@ export default async function EditStaffPage({
           {staff.isActive ? "Deactivate" : "Reactivate"}
         </SecondaryButton>
       </form>
-      <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+      <p className="mt-2 text-[12px] text-on-surface-variant">
         {staff.isActive
           ? "Deactivated staff are hidden from new shifts but stay in all past records, and can be reactivated at any time."
           : "Reactivating makes this person available for new shifts again."}

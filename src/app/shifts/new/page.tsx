@@ -21,7 +21,6 @@ export default async function NewShiftPage() {
 
   return (
     <div>
-      <h1 className="mb-4 text-xl font-semibold">New shift</h1>
       <ShiftForm
         action={createShift}
         staff={staff.map((s) => ({ id: s.id, name: s.name, role: s.role }))}

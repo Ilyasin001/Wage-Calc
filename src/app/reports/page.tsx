@@ -3,6 +3,7 @@ import { buildReportData } from "@/lib/report-data";
 import { formatPence } from "@/lib/format";
 import { addDays, mondayOf, todayLondon } from "@/lib/time";
 import { Card, EmptyState, inputClass } from "@/components/ui";
+import { Icon } from "@/components/icon";
 
 export const metadata = { title: "Reports" };
 
@@ -32,8 +33,8 @@ export default async function ReportsPage({
   ];
 
   return (
-    <div className="space-y-4">
-      <h1 className="text-xl font-semibold">Reports</h1>
+    <div className="flex flex-col gap-4 pt-4">
+      <h1 className="text-[20px] font-semibold text-on-surface">Reports</h1>
 
       <div className="flex flex-wrap gap-2">
         {quickPicks.map((q) => {
@@ -42,10 +43,10 @@ export default async function ReportsPage({
             <Link
               key={q.label}
               href={`/reports?from=${q.from}&to=${q.to}`}
-              className={`rounded-full px-3 py-1.5 text-sm font-medium ${
+              className={`microlabel rounded-[4px] px-3 py-1.5 transition-colors ${
                 active
-                  ? "bg-emerald-700 text-white"
-                  : "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300"
+                  ? "bg-secondary text-on-secondary"
+                  : "bg-secondary/10 text-secondary"
               }`}
             >
               {q.label}
@@ -56,8 +57,8 @@ export default async function ReportsPage({
 
       <Card>
         <form method="get" className="grid grid-cols-2 gap-3">
-          <label className="block">
-            <span className="mb-1 block text-sm font-medium">From</span>
+          <label className="flex flex-col gap-1">
+            <span className="microlabel text-on-surface-variant">From</span>
             <input
               type="date"
               name="from"
@@ -65,8 +66,8 @@ export default async function ReportsPage({
               className={inputClass}
             />
           </label>
-          <label className="block">
-            <span className="mb-1 block text-sm font-medium">To</span>
+          <label className="flex flex-col gap-1">
+            <span className="microlabel text-on-surface-variant">To</span>
             <input
               type="date"
               name="to"
@@ -76,7 +77,7 @@ export default async function ReportsPage({
           </label>
           <button
             type="submit"
-            className="col-span-2 rounded-lg border border-slate-300 py-2.5 text-sm font-medium hover:bg-slate-100 dark:border-slate-700 dark:hover:bg-slate-800"
+            className="col-span-2 h-[40px] rounded-[4px] border border-outline-variant text-[13px] font-semibold text-on-surface hover:bg-surface-container-low"
           >
             Apply range
           </button>
@@ -88,30 +89,41 @@ export default async function ReportsPage({
       ) : (
         <>
           <Card>
-            <p className="font-medium">
+            <span className="microlabel text-on-surface-variant">
               {from} to {to}
-            </p>
-            <ul className="mt-2 space-y-1 text-sm text-slate-600 dark:text-slate-300">
-              <li>{data.shifts.length} shifts</li>
-              <li>{data.staffSummary.length} staff worked</li>
-              <li className="font-semibold text-slate-900 dark:text-slate-100">
-                Grand total {formatPence(data.grandTotalPence)}
-              </li>
-            </ul>
+            </span>
+            <div className="mt-2 flex items-end justify-between">
+              <div className="text-[13px] text-on-surface-variant">
+                <p>
+                  {data.shifts.length}{" "}
+                  {data.shifts.length === 1 ? "shift" : "shifts"}
+                </p>
+                <p>
+                  {data.staffSummary.length}{" "}
+                  {data.staffSummary.length === 1 ? "staff member" : "staff"}{" "}
+                  worked
+                </p>
+              </div>
+              <span className="money text-[24px] font-bold text-primary">
+                {formatPence(data.grandTotalPence)}
+              </span>
+            </div>
           </Card>
 
           <div className="grid grid-cols-2 gap-3">
             <a
               href={`/api/reports?${query}&format=pdf`}
-              className="rounded-lg bg-emerald-700 py-3 text-center font-medium text-white hover:bg-emerald-800"
+              className="flex h-11 items-center justify-center gap-2 rounded-[4px] bg-secondary text-[14px] font-semibold text-on-secondary shadow-sm transition-colors hover:bg-on-secondary-fixed-variant"
             >
-              Download PDF
+              <Icon name="picture_as_pdf" size={20} />
+              PDF
             </a>
             <a
               href={`/api/reports?${query}&format=xlsx`}
-              className="rounded-lg border border-emerald-700 py-3 text-center font-medium text-emerald-700 hover:bg-emerald-50 dark:text-emerald-400 dark:hover:bg-emerald-950"
+              className="flex h-11 items-center justify-center gap-2 rounded-[4px] border border-secondary text-[14px] font-semibold text-secondary transition-colors hover:bg-secondary/10"
             >
-              Download Excel
+              <Icon name="table_view" size={20} />
+              Excel
             </a>
           </div>
         </>

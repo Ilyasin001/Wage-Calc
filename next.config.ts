@@ -15,11 +15,12 @@ const securityHeaders = [
   },
   {
     // Next.js needs inline styles/scripts for hydration; no external origins
-    // are permitted at all (spec §7).
+    // are permitted at all (spec §7). React's dev tooling additionally needs
+    // eval() — allowed in development only, never in production.
     key: "Content-Security-Policy",
     value: [
       "default-src 'self'",
-      "script-src 'self' 'unsafe-inline'",
+      `script-src 'self' 'unsafe-inline'${process.env.NODE_ENV === "development" ? " 'unsafe-eval'" : ""}`,
       "style-src 'self' 'unsafe-inline'",
       "img-src 'self' data:",
       "font-src 'self'",

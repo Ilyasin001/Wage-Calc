@@ -3,13 +3,9 @@
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { markEntriesPaid } from "@/lib/actions/payments";
-import { formatMinutesAsHours, formatPence } from "@/lib/format";
-import {
-  Card,
-  EmptyState,
-  ErrorBanner,
-  inputClass,
-} from "@/components/ui";
+import { formatPence } from "@/lib/format";
+import { EmptyState, ErrorBanner, InitialsTile } from "@/components/ui";
+import { Icon } from "@/components/icon";
 
 export interface PaymentShift {
   shiftId: string;
@@ -45,6 +41,11 @@ function shortTime(iso: string): string {
   }).format(new Date(iso));
 }
 
+function hoursLabel(minutes: number): string {
+  const h = minutes / 60;
+  return `${Number.isInteger(h) ? h : h.toFixed(1)}h`;
+}
+
 export function PaymentsClient({
   from,
   to,
@@ -71,7 +72,6 @@ export function PaymentsClient({
     (s) => !excludedDays.has(s.date) && !excludedShifts.has(s.shiftId),
   );
 
-  // Group unpaid entries by staff — only staff owed money appear (D14).
   const owed = useMemo(() => {
     const byStaff = new Map<
       string,
@@ -103,7 +103,7 @@ export function PaymentsClient({
         cur.workedMinutes += e.workedMinutes;
         cur.lines.push({
           entryId: e.entryId,
-          shiftLabel: `${shortDay(s.date)} · ${s.location} · ${shortTime(s.startAt)}–${shortTime(s.endAt)}`,
+          shiftLabel: `${shortDay(s.date)} · ${s.location} (${shortTime(s.startAt)}–${shortTime(s.endAt)})`,
           workedMinutes: e.workedMinutes,
           totalPence: e.totalPence,
         });
@@ -151,32 +151,45 @@ export function PaymentsClient({
   }
 
   return (
-    <div className="space-y-4">
-      <Card>
+    <div className="flex flex-col gap-4">
+      {/* Date range selector */}
+      <div className="flex flex-col gap-3 rounded-[8px] border border-outline-variant bg-surface-container-lowest p-4 shadow-sm">
+        <div className="flex items-center gap-2">
+          <Icon
+            name="calendar_today"
+            size={20}
+            className="text-on-surface-variant"
+          />
+          <span className="microlabel text-on-surface-variant">Pay period</span>
+        </div>
         <div className="grid grid-cols-2 gap-3">
-          <label className="block">
-            <span className="mb-1 block text-sm font-medium">From</span>
+          <label className="flex flex-col gap-1">
+            <span className="microlabel text-[10px] text-on-surface-variant">
+              From
+            </span>
             <input
               type="date"
               value={from}
               onChange={(e) => e.target.value && setRange(e.target.value, to)}
-              className={inputClass}
+              className="h-[40px] w-full rounded-[4px] border border-outline-variant bg-surface px-3 text-[14px] outline-none focus:border-secondary focus:ring-1 focus:ring-secondary"
             />
           </label>
-          <label className="block">
-            <span className="mb-1 block text-sm font-medium">To</span>
+          <label className="flex flex-col gap-1">
+            <span className="microlabel text-[10px] text-on-surface-variant">
+              To
+            </span>
             <input
               type="date"
               value={to}
               onChange={(e) => e.target.value && setRange(from, e.target.value)}
-              className={inputClass}
+              className="h-[40px] w-full rounded-[4px] border border-outline-variant bg-surface px-3 text-[14px] outline-none focus:border-secondary focus:ring-1 focus:ring-secondary"
             />
           </label>
         </div>
 
         {days.length > 0 && (
-          <div className="mt-3">
-            <p className="mb-1 text-sm font-medium">
+          <div>
+            <p className="microlabel mb-1.5 text-[10px] text-on-surface-variant">
               Days included (tap to exclude)
             </p>
             <div className="flex flex-wrap gap-2">
@@ -188,10 +201,10 @@ export function PaymentsClient({
                     type="button"
                     onClick={() => toggleDay(d)}
                     aria-pressed={!off}
-                    className={`rounded-full px-3 py-1.5 text-sm font-medium ${
+                    className={`microlabel rounded-[4px] px-2.5 py-1.5 transition-colors ${
                       off
-                        ? "bg-slate-100 text-slate-400 line-through dark:bg-slate-800 dark:text-slate-500"
-                        : "bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-200"
+                        ? "bg-surface-container text-on-surface-variant line-through opacity-60"
+                        : "bg-secondary/10 text-secondary"
                     }`}
                   >
                     {shortDay(d)}
@@ -203,8 +216,8 @@ export function PaymentsClient({
         )}
 
         {shifts.length > 0 && (
-          <details className="mt-3">
-            <summary className="cursor-pointer text-sm font-medium">
+          <details>
+            <summary className="microlabel cursor-pointer text-[10px] text-on-surface-variant">
               Individual shifts (tap to exclude)
             </summary>
             <ul className="mt-2 space-y-1">
@@ -218,10 +231,10 @@ export function PaymentsClient({
                       disabled={dayOff}
                       onClick={() => toggleShift(s.shiftId)}
                       aria-pressed={!off}
-                      className={`w-full rounded-lg px-3 py-2 text-left text-sm ${
+                      className={`w-full rounded-[4px] px-3 py-2 text-left text-[12px] transition-colors ${
                         off
-                          ? "bg-slate-100 text-slate-400 line-through dark:bg-slate-800 dark:text-slate-500"
-                          : "bg-emerald-50 text-emerald-900 dark:bg-emerald-950 dark:text-emerald-200"
+                          ? "bg-surface-container text-on-surface-variant line-through opacity-60"
+                          : "bg-secondary/10 text-on-secondary-fixed-variant"
                       }`}
                     >
                       {shortDay(s.date)} · {s.location} ·{" "}
@@ -233,7 +246,7 @@ export function PaymentsClient({
             </ul>
           </details>
         )}
-      </Card>
+      </div>
 
       {error && <ErrorBanner>{error}</ErrorBanner>}
 
@@ -243,128 +256,143 @@ export function PaymentsClient({
         </EmptyState>
       ) : (
         <>
-          <div className="flex items-center justify-between rounded-xl border border-emerald-200 bg-emerald-50 p-4 dark:border-emerald-900 dark:bg-emerald-950">
-            <div>
-              <p className="font-medium">Total owed</p>
-              <p className="text-sm text-slate-500 dark:text-slate-400">
-                {owed.length} staff
-              </p>
+          {/* Total outstanding + mark all */}
+          <div className="flex flex-col gap-3">
+            <div className="flex items-end justify-between">
+              <span className="microlabel text-[12px] text-on-surface-variant">
+                Total Outstanding · {owed.length} staff
+              </span>
+              <span className="money text-[24px] font-bold text-primary">
+                {formatPence(grandTotal)}
+              </span>
             </div>
-            <span className="text-lg font-bold">{formatPence(grandTotal)}</span>
+            {confirmFor === "ALL" ? (
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  disabled={pending}
+                  onClick={() => payEntries(allEntryIds)}
+                  className="flex h-11 w-full items-center justify-center gap-2 rounded-[4px] bg-secondary text-[14px] font-semibold text-on-secondary disabled:opacity-50"
+                >
+                  {pending
+                    ? "Marking…"
+                    : `Confirm ALL ${formatPence(grandTotal)} paid`}
+                </button>
+                <button
+                  type="button"
+                  disabled={pending}
+                  onClick={() => setConfirmFor(null)}
+                  className="h-11 w-full rounded-[4px] border border-outline-variant text-[14px] font-semibold"
+                >
+                  Cancel
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setConfirmFor("ALL")}
+                className="flex h-11 w-full items-center justify-center gap-2 rounded-[4px] bg-secondary text-[14px] font-semibold text-on-secondary shadow-sm transition-colors duration-150 hover:bg-on-secondary-fixed-variant active:scale-95"
+              >
+                <Icon name="done_all" size={20} />
+                Mark all paid
+              </button>
+            )}
           </div>
 
-          <ul className="space-y-3">
+          {/* Staff owed cards */}
+          <div className="flex flex-col gap-2">
             {owed.map((o) => (
-              <li key={o.staffId}>
-                <Card>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setExpandedStaff((cur) =>
-                        cur === o.staffId ? null : o.staffId,
-                      )
-                    }
-                    className="flex w-full items-center justify-between text-left"
-                  >
+              <article
+                key={o.staffId}
+                className="relative flex flex-col overflow-hidden rounded-[4px] border border-outline-variant bg-surface-container-lowest p-3 shadow-sm before:absolute before:bottom-0 before:left-0 before:top-0 before:w-1 before:bg-error"
+              >
+                <div className="mb-2 flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-3 pl-1">
+                    <InitialsTile name={o.name} />
                     <div>
-                      <p className="font-medium">{o.name}</p>
-                      <p className="text-sm text-slate-500 dark:text-slate-400">
+                      <h3 className="text-[14px] font-semibold leading-tight text-on-surface">
+                        {o.name}
+                      </h3>
+                      <p className="mt-0.5 text-[12px] text-on-surface-variant">
                         {o.lines.length}{" "}
-                        {o.lines.length === 1 ? "shift" : "shifts"} ·{" "}
-                        {formatMinutesAsHours(o.workedMinutes)}
+                        {o.lines.length === 1 ? "shift" : "shifts"}
                       </p>
                     </div>
-                    <span className="font-semibold">
-                      {formatPence(o.totalPence)}
-                    </span>
-                  </button>
-
-                  {expandedStaff === o.staffId && (
-                    <ul className="mt-3 space-y-1 border-t border-slate-100 pt-2 text-sm dark:border-slate-800">
-                      {o.lines.map((l) => (
-                        <li
-                          key={l.entryId}
-                          className="flex items-center justify-between py-1"
-                        >
-                          <span className="text-slate-600 dark:text-slate-300">
-                            {l.shiftLabel}
-                          </span>
-                          <span>
-                            {formatMinutesAsHours(l.workedMinutes)} ·{" "}
-                            {formatPence(l.totalPence)}
-                          </span>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-
-                  <div className="mt-3">
-                    {confirmFor === o.staffId ? (
-                      <div className="flex gap-2">
-                        <button
-                          type="button"
-                          disabled={pending}
-                          onClick={() => payEntries(o.entryIds)}
-                          className="w-full rounded-lg bg-emerald-700 py-2.5 text-sm font-medium text-white disabled:opacity-50"
-                        >
-                          {pending
-                            ? "Marking…"
-                            : `Confirm ${formatPence(o.totalPence)} paid`}
-                        </button>
-                        <button
-                          type="button"
-                          disabled={pending}
-                          onClick={() => setConfirmFor(null)}
-                          className="w-full rounded-lg border border-slate-300 py-2.5 text-sm font-medium dark:border-slate-700"
-                        >
-                          Cancel
-                        </button>
-                      </div>
-                    ) : (
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setExpandedStaff((cur) =>
+                          cur === o.staffId ? null : o.staffId,
+                        )
+                      }
+                      className="microlabel rounded-[4px] border border-outline-variant px-3 py-1 text-[12px] text-on-surface transition-colors hover:bg-surface-container-low"
+                    >
+                      View
+                    </button>
+                    {confirmFor !== o.staffId && (
                       <button
                         type="button"
                         onClick={() => setConfirmFor(o.staffId)}
-                        className="w-full rounded-lg border border-emerald-600 py-2.5 text-sm font-medium text-emerald-700 hover:bg-emerald-50 dark:text-emerald-400 dark:hover:bg-emerald-950"
+                        className="microlabel rounded-[4px] bg-surface-container-highest px-3 py-1 text-[12px] font-semibold text-secondary transition-colors hover:bg-secondary hover:text-on-secondary"
                       >
-                        Mark {o.name.split(" ")[0]} paid
+                        Pay
                       </button>
                     )}
                   </div>
-                </Card>
-              </li>
-            ))}
-          </ul>
+                </div>
 
-          {confirmFor === "ALL" ? (
-            <div className="flex gap-2">
-              <button
-                type="button"
-                disabled={pending}
-                onClick={() => payEntries(allEntryIds)}
-                className="w-full rounded-lg bg-emerald-700 py-3 font-medium text-white disabled:opacity-50"
-              >
-                {pending
-                  ? "Marking…"
-                  : `Confirm ALL ${formatPence(grandTotal)} paid`}
-              </button>
-              <button
-                type="button"
-                disabled={pending}
-                onClick={() => setConfirmFor(null)}
-                className="w-full rounded-lg border border-slate-300 py-3 font-medium dark:border-slate-700"
-              >
-                Cancel
-              </button>
-            </div>
-          ) : (
-            <button
-              type="button"
-              onClick={() => setConfirmFor("ALL")}
-              className="w-full rounded-lg bg-emerald-700 py-3 font-medium text-white hover:bg-emerald-800"
-            >
-              Mark all paid ({formatPence(grandTotal)})
-            </button>
-          )}
+                <div className="mt-1 flex items-center justify-between border-t border-outline-variant pt-2 pl-1">
+                  <span className="text-[12px] text-on-surface-variant">
+                    {hoursLabel(o.workedMinutes)}
+                  </span>
+                  <span className="money text-[14px] font-semibold text-primary">
+                    {formatPence(o.totalPence)}
+                  </span>
+                </div>
+
+                {confirmFor === o.staffId && (
+                  <div className="mt-2 flex gap-2 border-t border-outline-variant pt-2">
+                    <button
+                      type="button"
+                      disabled={pending}
+                      onClick={() => payEntries(o.entryIds)}
+                      className="h-9 w-full rounded-[4px] bg-secondary text-[12px] font-semibold text-on-secondary disabled:opacity-50"
+                    >
+                      {pending
+                        ? "Marking…"
+                        : `Confirm ${formatPence(o.totalPence)} paid`}
+                    </button>
+                    <button
+                      type="button"
+                      disabled={pending}
+                      onClick={() => setConfirmFor(null)}
+                      className="h-9 w-full rounded-[4px] border border-outline-variant text-[12px] font-semibold"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                )}
+
+                {expandedStaff === o.staffId && (
+                  <div className="mt-2 border-t border-outline-variant pt-2 pl-1 text-[12px]">
+                    {o.lines.map((l) => (
+                      <div
+                        key={l.entryId}
+                        className="flex justify-between py-1 text-on-surface-variant"
+                      >
+                        <span>{l.shiftLabel}</span>
+                        <span className="money text-[12px]">
+                          {formatPence(l.totalPence)}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </article>
+            ))}
+          </div>
         </>
       )}
     </div>

@@ -1,6 +1,17 @@
 import { prisma } from "@/lib/db";
 import { signOut } from "@/auth";
 import { Card, SecondaryButton } from "@/components/ui";
+import { Icon } from "@/components/icon";
+
+const PoundIcon = () => (
+  <Icon name="payments" size={20} className="text-secondary" />
+);
+const LocationIcon = () => (
+  <Icon name="location_on" size={20} className="text-secondary" />
+);
+const PersonIcon = () => (
+  <Icon name="person" size={20} className="text-secondary" />
+);
 import { RatesForm } from "./rates-form";
 import { LocationsManager } from "./locations-manager";
 import { PasswordForm } from "./password-form";
@@ -18,11 +29,14 @@ export default async function SettingsPage() {
   ]);
 
   return (
-    <div className="space-y-6">
-      <h1 className="text-xl font-semibold">Settings</h1>
+    <div className="space-y-6 pt-4">
+      <h1 className="text-[20px] font-semibold text-on-surface">Settings</h1>
 
       <section>
-        <h2 className="mb-2 font-medium">Standard hourly rates</h2>
+        <h2 className="mb-2 flex items-center gap-2 text-[14px] font-semibold text-on-surface">
+          <PoundIcon />
+          Standard hourly rates
+        </h2>
         <Card>
           <RatesForm
             baseRate={penceToInput(settings?.baseRatePence ?? 0)}
@@ -32,14 +46,20 @@ export default async function SettingsPage() {
       </section>
 
       <section>
-        <h2 className="mb-2 font-medium">Venues</h2>
+        <h2 className="mb-2 flex items-center gap-2 text-[14px] font-semibold text-on-surface">
+          <LocationIcon />
+          Venues
+        </h2>
         <LocationsManager
           locations={locations.map((l) => ({ id: l.id, name: l.name }))}
         />
       </section>
 
       <section>
-        <h2 className="mb-2 font-medium">Account</h2>
+        <h2 className="mb-2 flex items-center gap-2 text-[14px] font-semibold text-on-surface">
+          <PersonIcon />
+          Account
+        </h2>
         <Card>
           <PasswordForm />
         </Card>

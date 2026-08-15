@@ -32,7 +32,6 @@ export default async function EditShiftPage({
 
   return (
     <div>
-      <h1 className="mb-4 text-xl font-semibold">Edit shift</h1>
       <ShiftForm
         action={updateShift.bind(null, shift.id)}
         staff={options}

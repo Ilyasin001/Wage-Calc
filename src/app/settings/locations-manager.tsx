@@ -36,7 +36,7 @@ export function LocationsManager({
         <button
           type="submit"
           disabled={addPending}
-          className="shrink-0 rounded-lg bg-emerald-700 px-4 text-sm font-medium text-white hover:bg-emerald-800 disabled:opacity-50"
+          className="shrink-0 rounded-[4px] bg-secondary px-4 text-[13px] font-semibold text-on-secondary hover:bg-on-secondary-fixed-variant disabled:opacity-50"
         >
           Add
         </button>
@@ -70,7 +70,7 @@ function LocationRow({ id, name }: { id: string; name: string }) {
   );
 
   return (
-    <li className="rounded-xl border border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-slate-950">
+    <li className="rounded-[4px] border border-outline-variant bg-surface-container-lowest p-3 shadow-sm">
       {editing ? (
         <form action={formAction} className="space-y-2">
           {state?.error && <ErrorBanner>{state.error}</ErrorBanner>}
@@ -90,7 +90,7 @@ function LocationRow({ id, name }: { id: string; name: string }) {
             <button
               type="button"
               onClick={() => setEditing(false)}
-              className="w-full rounded-lg border border-slate-300 py-3 text-sm font-medium dark:border-slate-700"
+              className="w-full rounded-[4px] border border-outline-variant py-3 text-[13px] font-semibold"
             >
               Cancel
             </button>
@@ -102,7 +102,7 @@ function LocationRow({ id, name }: { id: string; name: string }) {
           <button
             type="button"
             onClick={() => setEditing(true)}
-            className="text-sm font-medium text-emerald-700 dark:text-emerald-400"
+            className="microlabel text-[12px] text-secondary"
           >
             Rename
           </button>

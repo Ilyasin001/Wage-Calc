@@ -1,17 +1,30 @@
 import type { Metadata, Viewport } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Inter, JetBrains_Mono } from "next/font/google";
+import localFont from "next/font/local";
 import "./globals.css";
 import { BottomNav } from "@/components/bottom-nav";
+import { TopAppBar } from "@/components/top-app-bar";
 import { auth } from "@/auth";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+const inter = Inter({
+  variable: "--font-inter",
   subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
 });
 
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
+const jetbrainsMono = JetBrains_Mono({
+  variable: "--font-jetbrains-mono",
   subsets: ["latin"],
+  weight: ["400", "600", "700"],
+});
+
+// Self-hosted Material Symbols (variable font) — external font CDNs are
+// blocked by the CSP (spec §7), so the file lives in the repo.
+const materialSymbols = localFont({
+  src: "../fonts/material-symbols-outlined.woff2",
+  variable: "--font-material-symbols",
+  display: "block",
+  preload: true,
 });
 
 export const metadata: Metadata = {
@@ -28,7 +41,7 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#047857",
+  themeColor: "#f8f9ff",
   width: "device-width",
   initialScale: 1,
 };
@@ -38,10 +51,15 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
       lang="en-GB"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${inter.variable} ${jetbrainsMono.variable} ${materialSymbols.variable} h-full antialiased`}
     >
-      <body className="min-h-full bg-slate-50 text-slate-900 dark:bg-slate-900 dark:text-slate-100">
-        <main className="mx-auto max-w-lg px-4 pb-24 pt-4">{children}</main>
+      <body className="min-h-full overflow-x-hidden bg-background font-sans text-[14px] leading-5 text-on-background">
+        {session?.user && <TopAppBar />}
+        <main
+          className={`mx-auto w-full max-w-2xl px-5 pb-[100px] ${session?.user ? "pt-[60px]" : "pt-4"}`}
+        >
+          {children}
+        </main>
         {session?.user && <BottomNav />}
       </body>
     </html>
