@@ -2,10 +2,13 @@ import { describe, expect, it } from "vitest";
 import {
   basePayPence,
   entryPay,
+  grossMinutes,
   rangesOverlap,
   shiftTotalPence,
+  validateBatch,
   validateEntry,
   validateRates,
+  withinWindow,
   workedMinutes,
   type EntryInput,
   type ShiftRates,
@@ -166,6 +169,16 @@ describe("validateEntry", () => {
       "negative-break",
     );
   });
+  it("accepts breaks on 5-minute steps (D22)", () => {
+    for (const m of [0, 5, 45, 90]) {
+      expect(validateEntry(entry({ breakMinutes: m }))).toEqual([]);
+    }
+  });
+  it("rejects a break that is not a 5-minute step (D22)", () => {
+    expect(validateEntry(entry({ breakMinutes: 7 }))).toContain(
+      "break-not-on-5-minute-step",
+    );
+  });
   it("rejects a break equal to the whole span", () => {
     expect(validateEntry(entry({ breakMinutes: 480 }))).toContain(
       "break-consumes-entire-time",
@@ -195,6 +208,107 @@ describe("validateEntry", () => {
     expect(issues).toContain("start-not-on-15-minute-boundary");
     expect(issues).toContain("negative-break");
     expect(issues).toContain("negative-additional");
+  });
+});
+
+describe("shift-window bounds (D23)", () => {
+  // Shift runs 18:00 → 02:00 next day.
+  const shift = {
+    startAt: new Date("2026-08-03T18:00:00Z"),
+    endAt: new Date("2026-08-04T02:00:00Z"),
+  };
+
+  it("accepts an entry spanning exactly the shift window", () => {
+    expect(validateEntry(entry(), shift)).toEqual([]);
+  });
+  it("accepts an entry inside the window", () => {
+    expect(
+      validateEntry(
+        entry({
+          startAt: new Date("2026-08-03T19:00:00Z"),
+          endAt: new Date("2026-08-04T01:00:00Z"),
+        }),
+        shift,
+      ),
+    ).toEqual([]);
+  });
+  it("rejects an entry starting before the shift", () => {
+    expect(
+      validateEntry(
+        entry({ startAt: new Date("2026-08-03T17:00:00Z") }),
+        shift,
+      ),
+    ).toContain("outside-shift-window");
+  });
+  it("rejects an entry finishing after the shift", () => {
+    expect(
+      validateEntry(entry({ endAt: new Date("2026-08-04T03:00:00Z") }), shift),
+    ).toContain("outside-shift-window");
+  });
+  it("does not apply the bound when no window is given", () => {
+    expect(
+      validateEntry(entry({ endAt: new Date("2026-08-04T03:00:00Z") })),
+    ).toEqual([]);
+  });
+
+  it("withinWindow allows touching edges", () => {
+    expect(withinWindow(shift, shift)).toBe(true);
+  });
+
+  describe("validateBatch", () => {
+    it("accepts a batch inside the shift", () => {
+      expect(
+        validateBatch(
+          {
+            startAt: new Date("2026-08-03T20:00:00Z"),
+            endAt: new Date("2026-08-04T02:00:00Z"),
+          },
+          shift,
+        ),
+      ).toEqual([]);
+    });
+    it("rejects a batch running past the shift end", () => {
+      expect(
+        validateBatch(
+          {
+            startAt: new Date("2026-08-03T20:00:00Z"),
+            endAt: new Date("2026-08-04T04:00:00Z"),
+          },
+          shift,
+        ),
+      ).toContain("outside-shift-window");
+    });
+    it("rejects a batch whose finish is not after its start", () => {
+      const t = new Date("2026-08-03T20:00:00Z");
+      expect(validateBatch({ startAt: t, endAt: t }, shift)).toContain(
+        "end-not-after-start",
+      );
+    });
+    it("rejects batch times off the 15-minute grid", () => {
+      expect(
+        validateBatch(
+          {
+            startAt: new Date("2026-08-03T20:07:00Z"),
+            endAt: new Date("2026-08-04T02:00:00Z"),
+          },
+          shift,
+        ),
+      ).toContain("start-not-on-15-minute-boundary");
+    });
+  });
+});
+
+describe("grossMinutes (D24 — reports show time on site)", () => {
+  it("ignores the break", () => {
+    expect(grossMinutes(entry({ breakMinutes: 60 }))).toBe(480);
+    expect(grossMinutes(entry({ breakMinutes: 0 }))).toBe(480);
+  });
+  it("is exposed on the pay breakdown alongside paid minutes", () => {
+    const pay = entryPay(entry({ breakMinutes: 60 }), rates);
+    expect(pay.grossMinutes).toBe(480);
+    expect(pay.workedMinutes).toBe(420);
+    // Pay still follows the paid minutes, not the gross.
+    expect(pay.basePayPence).toBe(8400);
   });
 });
 

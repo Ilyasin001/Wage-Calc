@@ -15,17 +15,26 @@ import {
 import type { ReportData, ReportShift } from "@/lib/report-data";
 
 const styles = StyleSheet.create({
-  page: { padding: 32, fontSize: 9, fontFamily: "Helvetica" },
+  page: { padding: 28, fontSize: 8.5, fontFamily: "Helvetica" },
   title: { fontSize: 16, fontFamily: "Helvetica-Bold", marginBottom: 2 },
-  subtitle: { fontSize: 9, color: "#555", marginBottom: 14 },
+  subtitle: { fontSize: 8.5, color: "#555", marginBottom: 4 },
+  note: { fontSize: 7.5, color: "#777", marginBottom: 12 },
   shiftBlock: { marginBottom: 14 },
   shiftHeader: {
-    backgroundColor: "#e8f5f0",
+    backgroundColor: "#dce9ff",
     padding: 6,
     fontFamily: "Helvetica-Bold",
     fontSize: 10,
   },
   shiftSub: { padding: 4, paddingLeft: 6, color: "#444" },
+  batchHeader: {
+    backgroundColor: "#eff4ff",
+    paddingVertical: 3,
+    paddingHorizontal: 6,
+    fontFamily: "Helvetica-Bold",
+    fontSize: 8.5,
+    marginTop: 4,
+  },
   row: {
     flexDirection: "row",
     borderBottomWidth: 0.5,
@@ -41,13 +50,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 6,
     fontFamily: "Helvetica-Bold",
   },
-  name: { width: "24%" },
-  times: { width: "16%" },
-  brk: { width: "9%", textAlign: "right" },
-  hours: { width: "11%", textAlign: "right" },
-  rate: { width: "12%", textAlign: "right" },
-  extra: { width: "13%", textAlign: "right" },
-  total: { width: "15%", textAlign: "right" },
+  name: { width: "20%" },
+  phone: { width: "14%" },
+  times: { width: "14%" },
+  brk: { width: "8%", textAlign: "right" },
+  hours: { width: "10%", textAlign: "right" },
+  rate: { width: "10%", textAlign: "right" },
+  extra: { width: "11%", textAlign: "right" },
+  total: { width: "13%", textAlign: "right" },
   totalRow: {
     flexDirection: "row",
     justifyContent: "flex-end",
@@ -57,7 +67,7 @@ const styles = StyleSheet.create({
   grand: {
     marginTop: 8,
     padding: 8,
-    backgroundColor: "#e8f5f0",
+    backgroundColor: "#dce9ff",
     flexDirection: "row",
     justifyContent: "space-between",
     fontFamily: "Helvetica-Bold",
@@ -69,12 +79,13 @@ const styles = StyleSheet.create({
     marginTop: 10,
     marginBottom: 6,
   },
-  sName: { width: "28%" },
-  sShifts: { width: "12%", textAlign: "right" },
-  sHours: { width: "14%", textAlign: "right" },
-  sBase: { width: "15%", textAlign: "right" },
-  sExtra: { width: "15%", textAlign: "right" },
-  sTotal: { width: "16%", textAlign: "right" },
+  sName: { width: "24%" },
+  sPhone: { width: "16%" },
+  sShifts: { width: "10%", textAlign: "right" },
+  sHours: { width: "12%", textAlign: "right" },
+  sBase: { width: "13%", textAlign: "right" },
+  sExtra: { width: "12%", textAlign: "right" },
+  sTotal: { width: "13%", textAlign: "right" },
 });
 
 function ShiftSection({ shift }: { shift: ReportShift }) {
@@ -85,39 +96,58 @@ function ShiftSection({ shift }: { shift: ReportShift }) {
         {formatTime(shift.startAt)}–{formatTime(shift.endAt)}
       </Text>
       <Text style={styles.shiftSub}>
-        {shift.entries.length} staff · base {formatPence(shift.baseRatePence)}
-        /hr · supervisor {formatPence(shift.supervisorRatePence)}/hr
+        {shift.staffCount} staff in{" "}
+        {shift.batches.length === 1
+          ? "1 batch"
+          : `${shift.batches.length} batches`}{" "}
+        · base {formatPence(shift.baseRatePence)}/hr · supervisor{" "}
+        {formatPence(shift.supervisorRatePence)}/hr
         {shift.description ? ` · ${shift.description}` : ""}
       </Text>
-      <View style={styles.headRow}>
-        <Text style={styles.name}>Name</Text>
-        <Text style={styles.times}>Times</Text>
-        <Text style={styles.brk}>Break</Text>
-        <Text style={styles.hours}>Hours</Text>
-        <Text style={styles.rate}>Rate</Text>
-        <Text style={styles.extra}>Additional</Text>
-        <Text style={styles.total}>Total</Text>
-      </View>
-      {shift.entries.map((e) => (
-        <View key={e.entryId} style={styles.row}>
-          <Text style={styles.name}>
-            {e.name}
-            {e.isSupervisor ? " (S)" : ""}
+
+      {shift.batches.map((batch) => (
+        <View key={batch.batchId}>
+          <Text style={styles.batchHeader}>
+            {batch.label} — {formatTime(batch.startAt)}–
+            {formatTime(batch.endAt)} — {batch.entries.length} staff —{" "}
+            {formatPence(batch.totalPence)}
           </Text>
-          <Text style={styles.times}>
-            {formatTime(e.startAt)}–{formatTime(e.endAt)}
-          </Text>
-          <Text style={styles.brk}>{e.breakMinutes}m</Text>
-          <Text style={styles.hours}>
-            {formatMinutesAsHours(e.pay.workedMinutes)}
-          </Text>
-          <Text style={styles.rate}>{formatPence(e.pay.ratePence)}</Text>
-          <Text style={styles.extra}>
-            {e.pay.additionalPence ? formatPence(e.pay.additionalPence) : "—"}
-          </Text>
-          <Text style={styles.total}>{formatPence(e.pay.totalPence)}</Text>
+          <View style={styles.headRow}>
+            <Text style={styles.name}>Name</Text>
+            <Text style={styles.phone}>Phone</Text>
+            <Text style={styles.times}>Times</Text>
+            <Text style={styles.brk}>Break</Text>
+            <Text style={styles.hours}>Hours</Text>
+            <Text style={styles.rate}>Rate</Text>
+            <Text style={styles.extra}>Additional</Text>
+            <Text style={styles.total}>Total</Text>
+          </View>
+          {batch.entries.map((e) => (
+            <View key={e.entryId} style={styles.row}>
+              <Text style={styles.name}>
+                {e.name}
+                {e.isSupervisor ? " (S)" : ""}
+              </Text>
+              <Text style={styles.phone}>{e.phone ?? "—"}</Text>
+              <Text style={styles.times}>
+                {formatTime(e.startAt)}–{formatTime(e.endAt)}
+              </Text>
+              <Text style={styles.brk}>{e.breakMinutes}m</Text>
+              <Text style={styles.hours}>
+                {formatMinutesAsHours(e.pay.grossMinutes)}
+              </Text>
+              <Text style={styles.rate}>{formatPence(e.pay.ratePence)}</Text>
+              <Text style={styles.extra}>
+                {e.pay.additionalPence
+                  ? formatPence(e.pay.additionalPence)
+                  : "—"}
+              </Text>
+              <Text style={styles.total}>{formatPence(e.pay.totalPence)}</Text>
+            </View>
+          ))}
         </View>
       ))}
+
       <View style={styles.totalRow}>
         <Text>Shift total: {formatPence(shift.totalPence)}</Text>
       </View>
@@ -135,6 +165,10 @@ function ReportDocument({ data }: { data: ReportData }) {
           {formatDate(data.generatedAt)}, {formatTime(data.generatedAt)} ·
           Wage-Calc
         </Text>
+        <Text style={styles.note}>
+          Hours show total time on site including breaks. Pay is calculated on
+          hours worked after deducting the break shown.
+        </Text>
 
         {data.shifts.map((s) => (
           <ShiftSection key={s.id} shift={s} />
@@ -150,6 +184,7 @@ function ReportDocument({ data }: { data: ReportData }) {
         </Text>
         <View style={styles.headRow}>
           <Text style={styles.sName}>Name</Text>
+          <Text style={styles.sPhone}>Phone</Text>
           <Text style={styles.sShifts}>Shifts</Text>
           <Text style={styles.sHours}>Hours</Text>
           <Text style={styles.sBase}>Base pay</Text>
@@ -159,9 +194,10 @@ function ReportDocument({ data }: { data: ReportData }) {
         {data.staffSummary.map((s) => (
           <View key={s.name} style={styles.row}>
             <Text style={styles.sName}>{s.name}</Text>
+            <Text style={styles.sPhone}>{s.phone ?? "—"}</Text>
             <Text style={styles.sShifts}>{s.shiftCount}</Text>
             <Text style={styles.sHours}>
-              {formatMinutesAsHours(s.workedMinutes)}
+              {formatMinutesAsHours(s.grossMinutes)}
             </Text>
             <Text style={styles.sBase}>{formatPence(s.basePence)}</Text>
             <Text style={styles.sExtra}>

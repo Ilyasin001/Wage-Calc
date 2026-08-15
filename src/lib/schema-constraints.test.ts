@@ -51,7 +51,20 @@ describe("one-supervisor-per-shift constraint", () => {
         supervisorRatePence: 1500,
       },
     });
-    const base = { shiftId: shift.id, startAt: shift.startAt, endAt: shift.endAt };
+    const batch = await prisma.batch.create({
+      data: {
+        shiftId: shift.id,
+        position: 1,
+        startAt: shift.startAt,
+        endAt: shift.endAt,
+      },
+    });
+    const base = {
+      shiftId: shift.id,
+      batchId: batch.id,
+      startAt: shift.startAt,
+      endAt: shift.endAt,
+    };
 
     // Two regular (NULL) rows must coexist.
     await prisma.shiftEntry.create({
@@ -89,10 +102,107 @@ describe("one-supervisor-per-shift constraint", () => {
         supervisorRatePence: 1500,
       },
     });
-    const base = { shiftId: shift.id, startAt: shift.startAt, endAt: shift.endAt };
+    const batch = await prisma.batch.create({
+      data: {
+        shiftId: shift.id,
+        position: 1,
+        startAt: shift.startAt,
+        endAt: shift.endAt,
+      },
+    });
+    const base = {
+      shiftId: shift.id,
+      batchId: batch.id,
+      startAt: shift.startAt,
+      endAt: shift.endAt,
+    };
     await prisma.shiftEntry.create({ data: { ...base, staffId: person.id } });
     await expect(
       prisma.shiftEntry.create({ data: { ...base, staffId: person.id } }),
     ).rejects.toThrow(/unique/i);
+  });
+
+  it("supports several batches per shift and cascades on delete", async () => {
+    const location = await prisma.location.create({
+      data: { name: "Third Venue" },
+    });
+    const staff = [];
+    for (const name of ["Fay", "Gus", "Hal"]) {
+      staff.push(await prisma.staff.create({ data: { name } }));
+    }
+    const shift = await prisma.shift.create({
+      data: {
+        date: "2026-08-05",
+        locationId: location.id,
+        startAt: new Date("2026-08-05T11:00:00Z"),
+        endAt: new Date("2026-08-05T21:00:00Z"),
+        baseRatePence: 1250,
+        supervisorRatePence: 1600,
+      },
+    });
+
+    // Early batch (12:00–19:00) and late batch (14:00–21:00).
+    const early = await prisma.batch.create({
+      data: {
+        shiftId: shift.id,
+        name: "Early",
+        position: 1,
+        startAt: new Date("2026-08-05T11:00:00Z"),
+        endAt: new Date("2026-08-05T18:00:00Z"),
+      },
+    });
+    const late = await prisma.batch.create({
+      data: {
+        shiftId: shift.id,
+        position: 2,
+        startAt: new Date("2026-08-05T13:00:00Z"),
+        endAt: new Date("2026-08-05T20:00:00Z"),
+      },
+    });
+
+    await prisma.shiftEntry.create({
+      data: {
+        shiftId: shift.id,
+        batchId: early.id,
+        staffId: staff[0].id,
+        startAt: early.startAt,
+        endAt: early.endAt,
+      },
+    });
+    await prisma.shiftEntry.create({
+      data: {
+        shiftId: shift.id,
+        batchId: late.id,
+        staffId: staff[1].id,
+        startAt: late.startAt,
+        endAt: late.endAt,
+      },
+    });
+    // A batch of one — typically the supervisor.
+    await prisma.shiftEntry.create({
+      data: {
+        shiftId: shift.id,
+        batchId: late.id,
+        staffId: staff[2].id,
+        isSupervisor: true,
+        startAt: late.startAt,
+        endAt: late.endAt,
+      },
+    });
+
+    const loaded = await prisma.shift.findUnique({
+      where: { id: shift.id },
+      include: { batches: { include: { entries: true } } },
+    });
+    expect(loaded?.batches).toHaveLength(2);
+    expect(loaded?.batches[0].entries).toHaveLength(1);
+    expect(loaded?.batches[1].entries).toHaveLength(2);
+
+    // Deleting the shift removes both batches and all their entries.
+    await prisma.shift.delete({ where: { id: shift.id } });
+    expect(await prisma.batch.count({ where: { shiftId: shift.id } })).toBe(0);
+    expect(
+      await prisma.shiftEntry.count({ where: { shiftId: shift.id } }),
+    ).toBe(0);
   });
 });

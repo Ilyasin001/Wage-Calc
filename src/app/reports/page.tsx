@@ -110,22 +110,13 @@ export default async function ReportsPage({
             </div>
           </Card>
 
-          <div className="grid grid-cols-2 gap-3">
-            <a
-              href={`/api/reports?${query}&format=pdf`}
-              className="flex h-11 items-center justify-center gap-2 rounded-[4px] bg-secondary text-[14px] font-semibold text-on-secondary shadow-sm transition-colors hover:bg-on-secondary-fixed-variant"
-            >
-              <Icon name="picture_as_pdf" size={20} />
-              PDF
-            </a>
-            <a
-              href={`/api/reports?${query}&format=xlsx`}
-              className="flex h-11 items-center justify-center gap-2 rounded-[4px] border border-secondary text-[14px] font-semibold text-secondary transition-colors hover:bg-secondary/10"
-            >
-              <Icon name="table_view" size={20} />
-              Excel
-            </a>
-          </div>
+          <a
+            href={`/api/reports?${query}`}
+            className="flex h-11 items-center justify-center gap-2 rounded-[4px] bg-secondary text-[14px] font-semibold text-on-secondary shadow-sm transition-colors hover:bg-on-secondary-fixed-variant"
+          >
+            <Icon name="picture_as_pdf" size={20} />
+            Download PDF
+          </a>
         </>
       )}
     </div>

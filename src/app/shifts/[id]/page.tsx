@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { deleteShift } from "@/lib/actions/shifts";
-import { shiftEntryViews } from "@/lib/shift-view";
+import { shiftBatchViews } from "@/lib/shift-view";
 import {
   formatDate,
   formatMinutesAsHours,
@@ -25,12 +25,18 @@ export default async function ShiftDetailPage({
     where: { id },
     include: {
       location: true,
+      batches: { orderBy: { position: "asc" } },
       entries: { include: { staff: true } },
     },
   });
   if (!shift) notFound();
 
-  const { entries, totalPence } = shiftEntryViews(shift, shift.entries);
+  const { batches, totalPence } = shiftBatchViews(
+    shift,
+    shift.batches,
+    shift.entries,
+  );
+  const entries = batches.flatMap((b) => b.entries);
   const anyPaid = entries.some((e) => e.paid);
   const fullyPaid = entries.length > 0 && entries.every((e) => e.paid);
   const [audit, allStaff, allLocations] = await Promise.all([
@@ -80,43 +86,68 @@ export default async function ShiftDetailPage({
 
       <Card>
         <div className="microlabel flex items-center justify-between text-[10px] text-on-surface-variant">
-          <span>{entries.length} staff</span>
+          <span>
+            {entries.length} staff ·{" "}
+            {batches.length === 1 ? "1 batch" : `${batches.length} batches`}
+          </span>
           <span>
             Base {formatPence(shift.baseRatePence)}/hr · Sup{" "}
             {formatPence(shift.supervisorRatePence)}/hr
           </span>
         </div>
-        <ul className="mt-2 divide-y divide-outline-variant/50">
-          {entries.map((e) => (
-            <li
-              key={e.entryId}
-              className="flex items-center justify-between py-3"
-            >
-              <div>
-                <p className="flex items-center gap-1 text-[14px] font-semibold text-on-surface">
-                  {e.name}
-                  {e.isSupervisor && (
-                    <Icon name="verified" size={16} className="text-secondary" />
-                  )}
-                </p>
-                <p className="mt-0.5 text-[12px] text-on-surface-variant">
-                  {formatTime(e.startAt)}–{formatTime(e.endAt)} ·{" "}
-                  {e.breakMinutes}m break ·{" "}
-                  {formatMinutesAsHours(e.pay.workedMinutes)} @{" "}
-                  {formatPence(e.pay.ratePence)}
-                  {e.pay.additionalPence > 0 &&
-                    ` · +${formatPence(e.pay.additionalPence)}`}
-                </p>
-              </div>
-              <div className="text-right">
-                <p className="money text-[14px] font-semibold text-on-surface">
-                  {formatPence(e.pay.totalPence)}
-                </p>
-                <PaidBadge entryId={e.entryId} paid={e.paid} />
-              </div>
-            </li>
-          ))}
-        </ul>
+
+        {batches.map((batch) => (
+          <section key={batch.batchId} className="mt-3">
+            <div className="flex items-center justify-between rounded-[4px] bg-surface-container px-2 py-1.5">
+              <span className="text-[12px] font-semibold text-on-surface">
+                {batch.label}
+                <span className="ml-2 font-normal text-on-surface-variant">
+                  {formatTime(batch.startAt)}–{formatTime(batch.endAt)} ·{" "}
+                  {batch.entries.length} staff
+                </span>
+              </span>
+              <span className="money text-[12px] font-semibold text-on-surface">
+                {formatPence(batch.totalPence)}
+              </span>
+            </div>
+            <ul className="divide-y divide-outline-variant/50">
+              {batch.entries.map((e) => (
+                <li
+                  key={e.entryId}
+                  className="flex items-center justify-between gap-2 py-3"
+                >
+                  <div className="min-w-0">
+                    <p className="flex items-center gap-1 text-[14px] font-semibold text-on-surface">
+                      <span className="truncate">{e.name}</span>
+                      {e.isSupervisor && (
+                        <Icon
+                          name="verified"
+                          size={16}
+                          className="text-secondary"
+                        />
+                      )}
+                    </p>
+                    <p className="mt-0.5 text-[12px] text-on-surface-variant">
+                      {formatTime(e.startAt)}–{formatTime(e.endAt)} ·{" "}
+                      {e.breakMinutes}m break ·{" "}
+                      {formatMinutesAsHours(e.pay.workedMinutes)} @{" "}
+                      {formatPence(e.pay.ratePence)}
+                      {e.pay.additionalPence > 0 &&
+                        ` · +${formatPence(e.pay.additionalPence)}`}
+                    </p>
+                  </div>
+                  <div className="shrink-0 text-right">
+                    <p className="money text-[14px] font-semibold text-on-surface">
+                      {formatPence(e.pay.totalPence)}
+                    </p>
+                    <PaidBadge entryId={e.entryId} paid={e.paid} />
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </section>
+        ))}
+
         <div className="mt-1 flex items-center justify-between border-t border-outline-variant pt-3">
           <span className="microlabel text-on-surface-variant">
             Shift total

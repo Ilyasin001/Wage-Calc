@@ -1,9 +1,9 @@
 # Wage-Calc
 
-Phone-first PWA for a single accountant: enter each shift's staff, times and
-breaks → get per-staff and shift-total wages instantly, keep a permanent
-searchable record, track exactly who has been paid, and export PDF/Excel
-reports.
+Phone-first PWA for a single accountant: enter each shift's staff in
+**batches** that share start/finish times → get per-staff and shift-total
+wages instantly, keep a permanent searchable record, track exactly who has
+been paid, and export PDF reports.
 
 Full product specification: [docs/SPECIFICATION.md](docs/SPECIFICATION.md) ·
 Build plan: [docs/IMPLEMENTATION_PLAN.md](docs/IMPLEMENTATION_PLAN.md)
@@ -67,6 +67,9 @@ scale). Because dev runs SQLite, the Postgres switch happens at deploy time:
   resolution, pay-week helpers.
 - `src/lib/actions/*` — all mutations (server actions): Zod-validated,
   session-checked, audit-logged.
-- One supervisor per shift is enforced by a database unique index, not just UI.
+- A shift holds one or more batches; a batch holds one or more staff and
+  supplies their default times. Nobody may work outside the shift's window.
+- One supervisor per shift (not per batch) is enforced by a database unique
+  index, not just UI.
 - Paid entries lock their wage fields; revert-to-unpaid (audit-logged) is the
   deliberate unlock. Shifts with paid entries cannot be deleted.

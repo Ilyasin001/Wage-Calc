@@ -46,7 +46,21 @@
 | D18 | Reports | Per-shift breakdown + per-staff summary; **PDF primary**, XLSX also available |
 | D19 | Auth | Single account, email + password, secure sessions; no roles/permissions needed |
 | D20 | Platform | Responsive **PWA**, phone-first (installable to home screen), works on desktop too |
-| D21 | Scale | ~75 staff, 6–10 shifts/week (~300–500/yr) — small data; simple fast queries; free/low-cost hosting |
+| D21 | Scale | ~75 staff, 6–10 shifts/week (~300–500/yr) — small data; simple fast queries; free/low-cost hosting. Large functions run to **50 staff per shift, ~25 per batch**, 3–4 back-to-back per week |
+
+### Amendments (2026-08-15) — batches, breaks, reports
+
+These supersede the decisions noted against each. Requested by the product owner after live use.
+
+| # | Decision | Detail |
+|---|----------|--------|
+| D22 | **Batches** (amends D8) | A shift contains one or more **batches**; a batch contains one or more staff. The batch carries the start/finish times its staff inherit, so a 25-person group is timed once rather than per person. Individual staff may still override their own times (someone who moved batches or came in late). A batch may hold a single person — typically the supervisor |
+| D23 | Break steps (amends D2) | Breaks are entered in **5-minute** steps. Shift and batch times stay on 15-minute steps |
+| D24 | Shift window is a hard bound | No batch and no staff member may start before the shift starts or finish after it ends. Rejected server-side with a named error |
+| D25 | Supervisor scope unchanged (upholds D5) | Still exactly one supervisor per **shift**, not per batch, DB-enforced. They may sit in a batch of their own |
+| D26 | Reports: PDF only (amends D18) | The **Excel/XLSX export is removed entirely**, along with the `exceljs` dependency |
+| D27 | PDF contents | Adds a **phone** column; rows are **grouped under their batch** (with the batch's times, headcount and subtotal); the **Hours** column shows **total time on site including breaks**. Pay is still calculated on hours worked *after* deducting the break — the Break column sits beside Hours and the report carries a note saying so |
+| D28 | Batch naming | Batches are numbered ("Batch 1", "Batch 2") and can optionally be given a name, e.g. "Bar staff" |
 
 ---
 
@@ -74,6 +88,8 @@ total_pay      = base_pay + additional_amount
 ## 4. Data Model
 
 ```
+Batch         id, shift_id → Shift, name (nullable), position,
+              start_at, end_at            -- one or more per shift (D22)
 User          id, email (unique), password_hash, created_at
 Settings      id (singleton), base_rate_pence, supervisor_rate_pence, updated_at
 Location      id, name (unique), created_at
@@ -83,7 +99,7 @@ Shift         id, date, location_id → Location, description (nullable),
               start_at (timestamp), end_at (timestamp),
               base_rate_pence, supervisor_rate_pence,      -- snapshots from Settings
               created_at, updated_at
-ShiftEntry    id, shift_id → Shift, staff_id → Staff,
+ShiftEntry    id, shift_id → Shift, batch_id → Batch, staff_id → Staff,
               is_supervisor (bool),
               start_at, end_at (timestamps; default = shift's),
               break_minutes (int; default 60, or 0 if supervisor),
@@ -110,11 +126,11 @@ AuditLog      id, entity_type, entity_id, action ENUM(create|update|delete),
 |---|--------|-------|---------|
 | P1 | Sign in | `/login` | Email + password. Rate-limited. |
 | P2 | **Home** | `/` | Shifts from the **last 7 days** (rolling from today): shift cards — location, date, start–finish, staff count, total wages; 7-day grand total; quick "New shift" button |
-| P3 | New / Edit shift | `/shifts/new`, `/shifts/[id]/edit` | Date, location (pick or add-new inline), optional description, shift start/finish, rates (prefilled from Settings, editable), staff picker (multi-select from active roster, search), supervisor designation (exactly one), per-staff time/break/additional editing, live running totals |
+| P3 | New / Edit shift | `/shifts/new`, `/shifts/[id]/edit` | Date, location (pick or add-new inline), optional description, shift start/finish, rates (prefilled from Settings, editable). Then one or more **batch** cards, each with its own start/finish and a full-screen multi-select roster picker for adding many staff at once. Staff appear as compact rows (name, hours, pay) expanding to break / additional / supervisor / optional individual times. Per-batch "break all" bulk setter, per-batch subtotal, live shift total |
 | P4 | Shift detail | `/shifts/[id]` | Read view: summary header + per-staff table (times, break, hours, rate, additional, total, paid badge); change-history panel; edit/delete actions |
 | P5 | History | `/history` | Table of all shifts ever; filters: date range, location, staff member; columns: date, location, staff count, times, total; row → shift detail |
 | P6 | **Payments** | `/payments` | Date/day-range selector (defaults to last complete pay week Mon–Sun) with the ability to **deselect individual days or individual shifts** from the selection; lists **only staff owed money**: name, shifts worked (expandable), hours, owed; grand total owed; "Mark paid" per staff and "Mark all paid"; confirmation step before marking |
-| P7 | Reports | `/reports` | Pick day / week / custom range → preview → download **PDF** or **XLSX**. Contents: per-shift sections (location, date, times, description, per-staff rows incl. additional column, shift total) + per-staff summary (shifts, hours, additional, total) + grand total |
+| P7 | Reports | `/reports` | Pick day / week / custom range → preview → download **PDF** (Excel removed, D26). Contents: per-shift sections (location, date, times, description) subdivided by **batch** (times, headcount, subtotal), per-staff rows with name, **phone**, times, break, **hours on site**, rate, additional and total; plus per-staff summary and grand total |
 | P8 | Staff | `/staff` | Roster list with active/inactive tabs and search; add/edit (name, phone, role); deactivate & reactivate |
 | P9 | Settings | `/settings` | Standard base & supervisor rates; location list management (rename only — removal deliberately not offered); account (change password) |
 

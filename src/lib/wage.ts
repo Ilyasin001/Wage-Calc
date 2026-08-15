@@ -4,12 +4,15 @@
  * Invariants enforced here:
  *  - all money is integer pence; rounding is half-up to the nearest penny
  *  - times land on 15-minute boundaries (D2)
+ *  - breaks are whole 5-minute steps (D22)
  *  - an entry ending "before" it starts is invalid — overnight entries are
  *    represented with real timestamps (endAt on the next calendar day), so
  *    endAt > startAt always holds for valid data (D9)
+ *  - nobody may work outside their shift's window (D23)
  */
 
 export const TIME_STEP_MINUTES = 15;
+export const BREAK_STEP_MINUTES = 5;
 
 export interface EntryInput {
   startAt: Date;
@@ -25,7 +28,10 @@ export interface ShiftRates {
 }
 
 export interface EntryPay {
+  /** Paid minutes — break deducted. Drives base pay. */
   workedMinutes: number;
+  /** Time on site including break. Display only (reports, D24). */
+  grossMinutes: number;
   ratePence: number;
   basePayPence: number;
   additionalPence: number;
@@ -37,11 +43,22 @@ export type EntryIssue =
   | "end-not-on-15-minute-boundary"
   | "end-not-after-start"
   | "negative-break"
+  | "break-not-on-5-minute-step"
   | "break-consumes-entire-time"
-  | "negative-additional";
+  | "negative-additional"
+  | "outside-shift-window";
 
-/** Validation issues for a single entry; empty array = valid. */
-export function validateEntry(entry: EntryInput): EntryIssue[] {
+/** The shift window an entry or batch must fall inside (D23). */
+export interface Window {
+  startAt: Date;
+  endAt: Date;
+}
+
+/**
+ * Validation issues for a single entry; empty array = valid.
+ * Pass the shift window to also enforce that nobody works outside it.
+ */
+export function validateEntry(entry: EntryInput, shift?: Window): EntryIssue[] {
   const issues: EntryIssue[] = [];
   if (!onQuarterHour(entry.startAt)) issues.push("start-not-on-15-minute-boundary");
   if (!onQuarterHour(entry.endAt)) issues.push("end-not-on-15-minute-boundary");
@@ -49,13 +66,45 @@ export function validateEntry(entry: EntryInput): EntryIssue[] {
     issues.push("end-not-after-start");
   }
   if (entry.breakMinutes < 0) issues.push("negative-break");
-  else if (
-    entry.endAt.getTime() > entry.startAt.getTime() &&
-    spanMinutes(entry) - entry.breakMinutes <= 0
-  ) {
-    issues.push("break-consumes-entire-time");
+  else {
+    if (!Number.isInteger(entry.breakMinutes / BREAK_STEP_MINUTES)) {
+      issues.push("break-not-on-5-minute-step");
+    }
+    if (
+      entry.endAt.getTime() > entry.startAt.getTime() &&
+      spanMinutes(entry) - entry.breakMinutes <= 0
+    ) {
+      issues.push("break-consumes-entire-time");
+    }
   }
   if (entry.additionalPence < 0) issues.push("negative-additional");
+  if (shift && !withinWindow(entry, shift)) issues.push("outside-shift-window");
+  return issues;
+}
+
+/** True when [inner) lies entirely inside [outer]; touching edges are fine. */
+export function withinWindow(inner: Window, outer: Window): boolean {
+  return (
+    inner.startAt.getTime() >= outer.startAt.getTime() &&
+    inner.endAt.getTime() <= outer.endAt.getTime()
+  );
+}
+
+export type BatchIssue =
+  | "start-not-on-15-minute-boundary"
+  | "end-not-on-15-minute-boundary"
+  | "end-not-after-start"
+  | "outside-shift-window";
+
+/** Validation issues for a batch's own times; empty array = valid. */
+export function validateBatch(batch: Window, shift: Window): BatchIssue[] {
+  const issues: BatchIssue[] = [];
+  if (!onQuarterHour(batch.startAt)) issues.push("start-not-on-15-minute-boundary");
+  if (!onQuarterHour(batch.endAt)) issues.push("end-not-on-15-minute-boundary");
+  if (batch.endAt.getTime() <= batch.startAt.getTime()) {
+    issues.push("end-not-after-start");
+  }
+  if (!withinWindow(batch, shift)) issues.push("outside-shift-window");
   return issues;
 }
 
@@ -81,6 +130,14 @@ export function workedMinutes(entry: EntryInput): number {
 }
 
 /**
+ * Total time on site, break included. Reports show this as "Hours" (D24);
+ * pay is always calculated from workedMinutes, which deducts the break.
+ */
+export function grossMinutes(entry: { startAt: Date; endAt: Date }): number {
+  return spanMinutes(entry);
+}
+
+/**
  * Base pay in pence: workedMinutes/60 × rate, rounded half-up to the penny.
  * Integer arithmetic throughout — no floating point (spec §3).
  */
@@ -97,6 +154,7 @@ export function entryPay(entry: EntryInput, rates: ShiftRates): EntryPay {
   const base = basePayPence(minutes, ratePence);
   return {
     workedMinutes: minutes,
+    grossMinutes: spanMinutes(entry),
     ratePence,
     basePayPence: base,
     additionalPence: entry.additionalPence,

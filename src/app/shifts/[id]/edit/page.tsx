@@ -17,7 +17,13 @@ export default async function EditShiftPage({
   const [shift, staff, locations] = await Promise.all([
     prisma.shift.findUnique({
       where: { id },
-      include: { entries: { include: { staff: true } } },
+      include: {
+        entries: { include: { staff: true } },
+        batches: {
+          orderBy: { position: "asc" },
+          include: { entries: { include: { staff: true } } },
+        },
+      },
     }),
     prisma.staff.findMany({ orderBy: { name: "asc" } }),
     prisma.location.findMany({ orderBy: { name: "asc" } }),
@@ -44,16 +50,35 @@ export default async function EditShiftPage({
           endTime: utcToLondonTime(shift.endAt),
           baseRate: penceToInput(shift.baseRatePence),
           supervisorRate: penceToInput(shift.supervisorRatePence),
-          entries: shift.entries.map((e) => ({
-            staffId: e.staffId,
-            isSupervisor: e.isSupervisor === true,
-            startTime: utcToLondonTime(e.startAt),
-            endTime: utcToLondonTime(e.endAt),
-            breakMinutes: e.breakMinutes,
-            additional: e.additionalPence
-              ? (e.additionalPence / 100).toFixed(2)
-              : "",
-          })),
+          batches: shift.batches.map((b) => {
+            const batchStart = utcToLondonTime(b.startAt);
+            const batchEnd = utcToLondonTime(b.endAt);
+            return {
+              key: b.id,
+              name: b.name ?? "",
+              startTime: batchStart,
+              endTime: batchEnd,
+              entries: b.entries
+                .slice()
+                .sort((x, y) => x.staff.name.localeCompare(y.staff.name))
+                .map((e) => {
+                  const start = utcToLondonTime(e.startAt);
+                  const end = utcToLondonTime(e.endAt);
+                  // Only surface an override when it differs from the batch.
+                  const custom = start !== batchStart || end !== batchEnd;
+                  return {
+                    staffId: e.staffId,
+                    isSupervisor: e.isSupervisor === true,
+                    startTime: custom ? start : null,
+                    endTime: custom ? end : null,
+                    breakMinutes: e.breakMinutes,
+                    additional: e.additionalPence
+                      ? (e.additionalPence / 100).toFixed(2)
+                      : "",
+                  };
+                }),
+            };
+          }),
         }}
         submitLabel="Save changes"
         lockedStaffIds={shift.entries

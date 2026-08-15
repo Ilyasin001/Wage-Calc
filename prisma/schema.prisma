@@ -59,15 +59,38 @@ model Shift {
   supervisorRatePence Int // snapshot from Settings at creation (D4)
   createdAt           DateTime     @default(now())
   updatedAt           DateTime     @updatedAt
+  batches             Batch[]
   entries             ShiftEntry[]
 
   @@index([date])
+}
+
+// A group of staff within a shift who share start/finish times (e.g. an
+// early batch and a late batch at a large function). A shift has one or
+// more batches; a batch has one or more staff. Batch times must fall
+// within the shift window, and individual staff may still override their
+// own times inside it.
+model Batch {
+  id        String       @id @default(cuid())
+  shiftId   String
+  shift     Shift        @relation(fields: [shiftId], references: [id], onDelete: Cascade)
+  name      String? // optional label, e.g. "Bar staff"; displayed as "Batch N" when absent
+  position  Int // 1-based ordering within the shift
+  startAt   DateTime
+  endAt     DateTime
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+  entries   ShiftEntry[]
+
+  @@index([shiftId])
 }
 
 model ShiftEntry {
   id              String    @id @default(cuid())
   shiftId         String
   shift           Shift     @relation(fields: [shiftId], references: [id], onDelete: Cascade)
+  batchId         String
+  batch           Batch     @relation(fields: [batchId], references: [id], onDelete: Cascade)
   staffId         String
   staff           Staff     @relation(fields: [staffId], references: [id])
   // true for the shift's supervisor, null for everyone else — NEVER false.
@@ -86,6 +109,7 @@ model ShiftEntry {
 
   @@unique([shiftId, staffId])
   @@unique([shiftId, isSupervisor])
+  @@index([batchId])
   @@index([staffId])
   @@index([paid])
 }

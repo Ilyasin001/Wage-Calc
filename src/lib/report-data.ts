@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/db";
-import { shiftEntryViews, type ShiftEntryView } from "@/lib/shift-view";
+import { shiftBatchViews, type BatchView } from "@/lib/shift-view";
 
-/** Shared data shape for PDF and XLSX reports (D18). */
+/** Shared data shape for the PDF report (D18). */
 
 export interface ReportShift {
   id: string;
@@ -12,14 +12,17 @@ export interface ReportShift {
   endAt: Date;
   baseRatePence: number;
   supervisorRatePence: number;
-  entries: ShiftEntryView[];
+  batches: BatchView[];
+  staffCount: number;
   totalPence: number;
 }
 
 export interface StaffSummaryRow {
   name: string;
+  phone: string | null;
   shiftCount: number;
-  workedMinutes: number;
+  /** Time on site, break included — matches the Hours column (D24). */
+  grossMinutes: number;
   basePence: number;
   additionalPence: number;
   totalPence: number;
@@ -42,12 +45,16 @@ export async function buildReportData(
 ): Promise<ReportData> {
   const rows = await prisma.shift.findMany({
     where: { date: { gte: from, lte: to } },
-    include: { location: true, entries: { include: { staff: true } } },
+    include: {
+      location: true,
+      batches: { orderBy: { position: "asc" } },
+      entries: { include: { staff: true } },
+    },
     orderBy: [{ date: "asc" }, { startAt: "asc" }],
   });
 
   const shifts: ReportShift[] = rows.map((s) => {
-    const { entries, totalPence } = shiftEntryViews(s, s.entries);
+    const { batches, totalPence } = shiftBatchViews(s, s.batches, s.entries);
     return {
       id: s.id,
       date: s.date,
@@ -57,33 +64,37 @@ export async function buildReportData(
       endAt: s.endAt,
       baseRatePence: s.baseRatePence,
       supervisorRatePence: s.supervisorRatePence,
-      entries,
+      batches,
+      staffCount: batches.reduce((n, b) => n + b.entries.length, 0),
       totalPence,
     };
   });
 
-  // Per-staff weekly summary (D14/answer 5): what each person is owed overall.
+  // Per-staff summary (D14): what each person is owed across the range.
   const byStaff = new Map<string, StaffSummaryRow>();
   for (const shift of shifts) {
-    for (const e of shift.entries) {
-      const cur = byStaff.get(e.staffId) ?? {
-        name: e.name,
-        shiftCount: 0,
-        workedMinutes: 0,
-        basePence: 0,
-        additionalPence: 0,
-        totalPence: 0,
-        paidPence: 0,
-        unpaidPence: 0,
-      };
-      cur.shiftCount += 1;
-      cur.workedMinutes += e.pay.workedMinutes;
-      cur.basePence += e.pay.basePayPence;
-      cur.additionalPence += e.pay.additionalPence;
-      cur.totalPence += e.pay.totalPence;
-      if (e.paid) cur.paidPence += e.pay.totalPence;
-      else cur.unpaidPence += e.pay.totalPence;
-      byStaff.set(e.staffId, cur);
+    for (const batch of shift.batches) {
+      for (const e of batch.entries) {
+        const cur = byStaff.get(e.staffId) ?? {
+          name: e.name,
+          phone: e.phone,
+          shiftCount: 0,
+          grossMinutes: 0,
+          basePence: 0,
+          additionalPence: 0,
+          totalPence: 0,
+          paidPence: 0,
+          unpaidPence: 0,
+        };
+        cur.shiftCount += 1;
+        cur.grossMinutes += e.pay.grossMinutes;
+        cur.basePence += e.pay.basePayPence;
+        cur.additionalPence += e.pay.additionalPence;
+        cur.totalPence += e.pay.totalPence;
+        if (e.paid) cur.paidPence += e.pay.totalPence;
+        else cur.unpaidPence += e.pay.totalPence;
+        byStaff.set(e.staffId, cur);
+      }
     }
   }
   const staffSummary = [...byStaff.values()].sort((a, b) =>

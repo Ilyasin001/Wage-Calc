@@ -7,18 +7,20 @@ import { diffFields, logAudit, requireUser } from "@/lib/audit";
 import { formatDate, formatTime } from "@/lib/format";
 import { shiftPayloadSchema, type ShiftPayload } from "@/lib/shift-schema";
 import { londonToUtc, resolveEntryEnd, resolveEntryStart } from "@/lib/time";
-import { validateEntry, validateRates } from "@/lib/wage";
+import { validateBatch, validateEntry, validateRates } from "@/lib/wage";
 import type { ActionResult } from "@/lib/actions/staff";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-const entryIssueMessages: Record<string, string> = {
+const issueMessages: Record<string, string> = {
   "start-not-on-15-minute-boundary": "times must be in 15-minute steps",
   "end-not-on-15-minute-boundary": "times must be in 15-minute steps",
   "end-not-after-start": "finish time must be after start time",
   "negative-break": "break cannot be negative",
+  "break-not-on-5-minute-step": "break must be in 5-minute steps",
   "break-consumes-entire-time": "break is as long as the whole time worked",
   "negative-additional": "additional amount cannot be negative",
+  "outside-shift-window": "times fall outside the shift's own start and finish",
 };
 
 interface ResolvedEntry {
@@ -30,12 +32,26 @@ interface ResolvedEntry {
   additionalPence: number;
 }
 
+interface ResolvedBatch {
+  name: string | null;
+  position: number;
+  startAt: Date;
+  endAt: Date;
+  entries: ResolvedEntry[];
+}
+
 interface Resolved {
   payload: ShiftPayload;
   locationId: string;
   startAt: Date;
   endAt: Date;
+  batches: ResolvedBatch[];
+  /** Flattened for clash checks and paid-entry comparison. */
   entries: ResolvedEntry[];
+}
+
+function batchLabel(name: string | null, position: number): string {
+  return name?.trim() ? name.trim() : `Batch ${position}`;
 }
 
 /**
@@ -62,17 +78,21 @@ async function resolveShift(
   if (endAt.getTime() - startAt.getTime() > DAY_MS) {
     return { error: "A shift cannot be longer than 24 hours" };
   }
+  const shiftWindow = { startAt, endAt };
 
-  // Supervisor invariants (D5)
-  const supervisors = p.entries.filter((e) => e.isSupervisor);
+  // Supervisor invariants (D5): exactly one across the whole shift.
+  const allEntries = p.batches.flatMap((b) => b.entries);
+  const supervisors = allEntries.filter((e) => e.isSupervisor);
   if (supervisors.length !== 1) {
     return { error: "Exactly one staff member must be the supervisor" };
   }
 
-  // Unique staff (DB also enforces)
-  const ids = p.entries.map((e) => e.staffId);
+  // Unique staff across the shift (DB also enforces).
+  const ids = allEntries.map((e) => e.staffId);
   if (new Set(ids).size !== ids.length) {
-    return { error: "A staff member appears more than once" };
+    return {
+      error: "A staff member appears more than once — check the batches",
+    };
   }
 
   const staff = await prisma.staff.findMany({ where: { id: { in: ids } } });
@@ -81,34 +101,66 @@ async function resolveShift(
     return { error: "A selected staff member no longer exists" };
   }
 
-  // Resolve and validate each entry
-  const entries: ResolvedEntry[] = [];
-  for (const e of p.entries) {
-    const name = staffById.get(e.staffId)!.name;
-    const entryStart = resolveEntryStart(p.date, startAt, e.startTime);
-    const entryEnd = resolveEntryEnd(entryStart, e.endTime);
-    const issues = validateEntry({
-      startAt: entryStart,
-      endAt: entryEnd,
-      breakMinutes: e.breakMinutes,
-      isSupervisor: e.isSupervisor,
-      additionalPence: e.additionalPence,
-    });
-    if (issues.length > 0) {
-      return { error: `${name}: ${entryIssueMessages[issues[0]] ?? issues[0]}` };
+  // Resolve each batch, then each entry relative to its own batch's times.
+  const batches: ResolvedBatch[] = [];
+  for (const [index, b] of p.batches.entries()) {
+    const position = index + 1;
+    const label = batchLabel(b.name ?? null, position);
+    const batchStart = resolveEntryStart(p.date, startAt, b.startTime);
+    const batchEnd = resolveEntryEnd(batchStart, b.endTime);
+    const batchIssues = validateBatch(
+      { startAt: batchStart, endAt: batchEnd },
+      shiftWindow,
+    );
+    if (batchIssues.length > 0) {
+      return {
+        error: `${label}: ${issueMessages[batchIssues[0]] ?? batchIssues[0]}`,
+      };
     }
-    entries.push({
-      staffId: e.staffId,
-      isSupervisor: e.isSupervisor,
-      startAt: entryStart,
-      endAt: entryEnd,
-      breakMinutes: e.breakMinutes,
-      additionalPence: e.additionalPence,
+
+    const entries: ResolvedEntry[] = [];
+    for (const e of b.entries) {
+      const name = staffById.get(e.staffId)!.name;
+      const entryStart = resolveEntryStart(p.date, batchStart, e.startTime);
+      const entryEnd = resolveEntryEnd(entryStart, e.endTime);
+      const issues = validateEntry(
+        {
+          startAt: entryStart,
+          endAt: entryEnd,
+          breakMinutes: e.breakMinutes,
+          isSupervisor: e.isSupervisor,
+          additionalPence: e.additionalPence,
+        },
+        shiftWindow,
+      );
+      if (issues.length > 0) {
+        return {
+          error: `${name} (${label}): ${issueMessages[issues[0]] ?? issues[0]}`,
+        };
+      }
+      entries.push({
+        staffId: e.staffId,
+        isSupervisor: e.isSupervisor,
+        startAt: entryStart,
+        endAt: entryEnd,
+        breakMinutes: e.breakMinutes,
+        additionalPence: e.additionalPence,
+      });
+    }
+
+    batches.push({
+      name: b.name?.trim() ? b.name.trim() : null,
+      position,
+      startAt: batchStart,
+      endAt: batchEnd,
+      entries,
     });
   }
 
+  const flatEntries = batches.flatMap((b) => b.entries);
+
   // Clash detection (D10): no staff member in two overlapping shifts.
-  for (const e of entries) {
+  for (const e of flatEntries) {
     const clash = await prisma.shiftEntry.findFirst({
       where: {
         staffId: e.staffId,
@@ -148,7 +200,9 @@ async function resolveShift(
     if (!exists) return { error: "Venue not found" };
   }
 
-  return { ok: { payload: p, locationId, startAt, endAt, entries } };
+  return {
+    ok: { payload: p, locationId, startAt, endAt, batches, entries: flatEntries },
+  };
 }
 
 function entrySnapshot(e: ResolvedEntry) {
@@ -159,6 +213,16 @@ function entrySnapshot(e: ResolvedEntry) {
     endAt: e.endAt.toISOString(),
     breakMinutes: e.breakMinutes,
     additionalPence: e.additionalPence,
+  };
+}
+
+function batchSnapshot(b: ResolvedBatch) {
+  return {
+    name: b.name,
+    position: b.position,
+    startAt: b.startAt.toISOString(),
+    endAt: b.endAt.toISOString(),
+    entries: b.entries.map(entrySnapshot),
   };
 }
 
@@ -175,7 +239,7 @@ export async function createShift(
   }
   const result = await resolveShift(raw, null);
   if ("error" in result) return { error: result.error };
-  const { payload, locationId, startAt, endAt, entries } = result.ok;
+  const { payload, locationId, startAt, endAt, batches } = result.ok;
 
   const shift = await prisma.$transaction(async (tx) => {
     const created = await tx.shift.create({
@@ -187,18 +251,30 @@ export async function createShift(
         endAt,
         baseRatePence: payload.baseRatePence,
         supervisorRatePence: payload.supervisorRatePence,
-        entries: {
-          create: entries.map((e) => ({
-            staffId: e.staffId,
-            isSupervisor: e.isSupervisor ? true : null,
-            startAt: e.startAt,
-            endAt: e.endAt,
-            breakMinutes: e.breakMinutes,
-            additionalPence: e.additionalPence,
-          })),
-        },
       },
     });
+    for (const b of batches) {
+      await tx.batch.create({
+        data: {
+          shiftId: created.id,
+          name: b.name,
+          position: b.position,
+          startAt: b.startAt,
+          endAt: b.endAt,
+          entries: {
+            create: b.entries.map((e) => ({
+              shiftId: created.id,
+              staffId: e.staffId,
+              isSupervisor: e.isSupervisor ? true : null,
+              startAt: e.startAt,
+              endAt: e.endAt,
+              breakMinutes: e.breakMinutes,
+              additionalPence: e.additionalPence,
+            })),
+          },
+        },
+      });
+    }
     await logAudit(
       "shift",
       created.id,
@@ -210,7 +286,7 @@ export async function createShift(
         endAt: endAt.toISOString(),
         baseRatePence: payload.baseRatePence,
         supervisorRatePence: payload.supervisorRatePence,
-        entries: entries.map(entrySnapshot),
+        batches: batches.map(batchSnapshot),
       },
       tx,
     );
@@ -239,13 +315,13 @@ export async function updateShift(
 
   const existing = await prisma.shift.findUnique({
     where: { id: shiftId },
-    include: { entries: true },
+    include: { entries: true, batches: true },
   });
   if (!existing) return { error: "Shift not found" };
 
   const result = await resolveShift(raw, shiftId);
   if ("error" in result) return { error: result.error };
-  const { payload, locationId, startAt, endAt, entries } = result.ok;
+  const { payload, locationId, startAt, endAt, batches, entries } = result.ok;
 
   // Paid-entry locking (A4/A5): every paid entry must survive unchanged,
   // and the shift's rates must not move under it.
@@ -305,77 +381,57 @@ export async function updateShift(
       },
     });
 
-    // Reconcile entries: delete removed, update changed, create added.
-    const nextByStaff = new Map(entries.map((e) => [e.staffId, e]));
-    const entryChanges: Record<string, unknown>[] = [];
+    // Batches are rebuilt wholesale — they hold no state beyond times and
+    // membership, and paid entries were proven unchanged above. Entries keep
+    // their original id when the same staff member is still on the shift, so
+    // audit records of payments continue to resolve. Supervisor flags are
+    // cleared first so the partial unique index never sees two supervisors
+    // mid-write.
+    const previousByStaff = new Map(existing.entries.map((e) => [e.staffId, e]));
+    await tx.shiftEntry.updateMany({
+      where: { shiftId },
+      data: { isSupervisor: null },
+    });
+    await tx.shiftEntry.deleteMany({ where: { shiftId } });
+    await tx.batch.deleteMany({ where: { shiftId } });
 
-    for (const old of existing.entries) {
-      const next = nextByStaff.get(old.staffId);
-      if (!next) {
-        await tx.shiftEntry.delete({ where: { id: old.id } });
-        entryChanges.push({ removedStaffId: old.staffId });
-        continue;
-      }
-      nextByStaff.delete(old.staffId);
-      const diff = diffFields(
-        {
-          isSupervisor: old.isSupervisor === true,
-          startAt: old.startAt,
-          endAt: old.endAt,
-          breakMinutes: old.breakMinutes,
-          additionalPence: old.additionalPence,
-        },
-        {
-          isSupervisor: next.isSupervisor,
-          startAt: next.startAt,
-          endAt: next.endAt,
-          breakMinutes: next.breakMinutes,
-          additionalPence: next.additionalPence,
-        },
-      );
-      if (Object.keys(diff).length > 0) {
-        // Clear supervisor flags first so the unique index never sees two.
-        await tx.shiftEntry.update({
-          where: { id: old.id },
-          data: { isSupervisor: null },
-        });
-        entryChanges.push({ staffId: old.staffId, ...diff });
-      }
-      await tx.shiftEntry.update({
-        where: { id: old.id },
-        data: {
-          isSupervisor: next.isSupervisor ? true : null,
-          startAt: next.startAt,
-          endAt: next.endAt,
-          breakMinutes: next.breakMinutes,
-          additionalPence: next.additionalPence,
-        },
-      });
-    }
-    for (const added of nextByStaff.values()) {
-      await tx.shiftEntry.create({
+    for (const b of batches) {
+      await tx.batch.create({
         data: {
           shiftId,
-          staffId: added.staffId,
-          isSupervisor: added.isSupervisor ? true : null,
-          startAt: added.startAt,
-          endAt: added.endAt,
-          breakMinutes: added.breakMinutes,
-          additionalPence: added.additionalPence,
+          name: b.name,
+          position: b.position,
+          startAt: b.startAt,
+          endAt: b.endAt,
+          entries: {
+            create: b.entries.map((e) => {
+              const before = previousByStaff.get(e.staffId);
+              return {
+                ...(before ? { id: before.id } : {}),
+                shiftId,
+                staffId: e.staffId,
+                isSupervisor: e.isSupervisor ? true : null,
+                startAt: e.startAt,
+                endAt: e.endAt,
+                breakMinutes: e.breakMinutes,
+                additionalPence: e.additionalPence,
+                // Paid status survives an edit — it is settled money.
+                paid: before?.paid ?? false,
+                paidAt: before?.paidAt ?? null,
+              };
+            }),
+          },
         },
       });
-      entryChanges.push({ addedStaffId: added.staffId, ...entrySnapshot(added) });
     }
 
-    if (Object.keys(shiftDiff).length > 0 || entryChanges.length > 0) {
-      await logAudit(
-        "shift",
-        shiftId,
-        "update",
-        { ...shiftDiff, ...(entryChanges.length ? { entryChanges } : {}) },
-        tx,
-      );
-    }
+    await logAudit(
+      "shift",
+      shiftId,
+      "update",
+      { ...shiftDiff, batches: batches.map(batchSnapshot) },
+      tx,
+    );
   });
 
   revalidatePath("/");
@@ -398,7 +454,7 @@ export async function deleteShift(shiftId: string): Promise<ActionResult> {
   }
 
   await prisma.$transaction(async (tx) => {
-    await tx.shift.delete({ where: { id: shiftId } }); // entries cascade
+    await tx.shift.delete({ where: { id: shiftId } }); // batches + entries cascade
     await logAudit(
       "shift",
       shiftId,

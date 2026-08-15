@@ -33,7 +33,17 @@ export default async function NewShiftPage() {
           endTime: "23:00",
           baseRate: penceToInput(settings?.baseRatePence ?? 0),
           supervisorRate: penceToInput(settings?.supervisorRatePence ?? 0),
-          entries: [],
+          // One batch spanning the shift is the common case; the accountant
+          // adds more only when groups start at different times.
+          batches: [
+            {
+              key: "b0",
+              name: "",
+              startTime: "18:00",
+              endTime: "23:00",
+              entries: [],
+            },
+          ],
         }}
         submitLabel="Save shift"
       />
