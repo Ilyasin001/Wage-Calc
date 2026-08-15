@@ -48,23 +48,6 @@ body {
   -webkit-tap-highlight-color: transparent;
 }
 
-/* Material Symbols icon glyphs (self-hosted via next/font). */
-.msym {
-  font-family: var(--font-material-symbols);
-  font-weight: normal;
-  font-style: normal;
-  line-height: 1;
-  letter-spacing: normal;
-  text-transform: none;
-  display: inline-block;
-  white-space: nowrap;
-  word-wrap: normal;
-  direction: ltr;
-  font-variation-settings: "FILL" 1;
-  -webkit-font-smoothing: antialiased;
-  user-select: none;
-}
-
 /* Money and tabular figures — JetBrains Mono per the design system. */
 .money {
   font-family: var(--font-jetbrains-mono);

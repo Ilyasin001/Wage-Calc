@@ -1,6 +1,5 @@
 import type { Metadata, Viewport } from "next";
 import { Inter, JetBrains_Mono } from "next/font/google";
-import localFont from "next/font/local";
 import "./globals.css";
 import { BottomNav } from "@/components/bottom-nav";
 import { TopAppBar } from "@/components/top-app-bar";
@@ -16,15 +15,6 @@ const jetbrainsMono = JetBrains_Mono({
   variable: "--font-jetbrains-mono",
   subsets: ["latin"],
   weight: ["400", "600", "700"],
-});
-
-// Self-hosted Material Symbols (variable font) — external font CDNs are
-// blocked by the CSP (spec §7), so the file lives in the repo.
-const materialSymbols = localFont({
-  src: "../fonts/material-symbols-outlined.woff2",
-  variable: "--font-material-symbols",
-  display: "block",
-  preload: true,
 });
 
 export const metadata: Metadata = {
@@ -51,7 +41,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
       lang="en-GB"
-      className={`${inter.variable} ${jetbrainsMono.variable} ${materialSymbols.variable} h-full antialiased`}
+      className={`${inter.variable} ${jetbrainsMono.variable} h-full antialiased`}
     >
       <body className="min-h-full overflow-x-hidden bg-background font-sans text-[14px] leading-5 text-on-background">
         {session?.user && <TopAppBar />}
