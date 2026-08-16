@@ -18,6 +18,8 @@ export interface ReportShift {
 }
 
 export interface StaffSummaryRow {
+  /** Two staff can share a name, so rows are identified by id. */
+  staffId: string;
   name: string;
   phone: string | null;
   shiftCount: number;
@@ -31,6 +33,7 @@ export interface StaffSummaryRow {
 }
 
 export interface ReportData {
+  companyName: string | null;
   from: string;
   to: string;
   generatedAt: Date;
@@ -43,6 +46,7 @@ export async function buildReportData(
   from: string,
   to: string,
 ): Promise<ReportData> {
+  const settings = await prisma.settings.findUnique({ where: { id: 1 } });
   const rows = await prisma.shift.findMany({
     where: { date: { gte: from, lte: to } },
     include: {
@@ -76,6 +80,7 @@ export async function buildReportData(
     for (const batch of shift.batches) {
       for (const e of batch.entries) {
         const cur = byStaff.get(e.staffId) ?? {
+          staffId: e.staffId,
           name: e.name,
           phone: e.phone,
           shiftCount: 0,
@@ -102,6 +107,7 @@ export async function buildReportData(
   );
 
   return {
+    companyName: settings?.companyName ?? null,
     from,
     to,
     generatedAt: new Date(),

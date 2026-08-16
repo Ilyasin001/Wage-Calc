@@ -19,9 +19,10 @@ model User {
   createdAt    DateTime @default(now())
 }
 
-// Singleton row (id always 1): company-wide standard rates.
+// Singleton row (id always 1): company-wide standard rates and identity.
 model Settings {
   id                  Int      @id @default(1)
+  companyName         String? // shown as the header on every PDF report
   baseRatePence       Int
   supervisorRatePence Int
   updatedAt           DateTime @updatedAt

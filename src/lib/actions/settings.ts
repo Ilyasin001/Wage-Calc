@@ -8,6 +8,39 @@ import { logAudit, requireUser } from "@/lib/audit";
 import { parsePoundsToPence } from "@/lib/format";
 import type { ActionResult } from "@/lib/actions/staff";
 
+/** Company/account name — printed as the header on every PDF report. */
+export async function updateCompanyName(
+  _prev: ActionResult,
+  formData: FormData,
+): Promise<ActionResult> {
+  await requireUser();
+  const parsed = z
+    .string()
+    .trim()
+    .max(120, "Company name is too long")
+    .safeParse(formData.get("companyName"));
+  if (!parsed.success) return { error: parsed.error.issues[0].message };
+  const companyName = parsed.data || null;
+
+  const before = await prisma.settings.findUnique({ where: { id: 1 } });
+  await prisma.settings.upsert({
+    where: { id: 1 },
+    // Rates are required on create; a fresh install seeds them anyway.
+    create: {
+      id: 1,
+      companyName,
+      baseRatePence: before?.baseRatePence ?? 0,
+      supervisorRatePence: before?.supervisorRatePence ?? 0,
+    },
+    update: { companyName },
+  });
+  await logAudit("settings", "1", "update", {
+    companyName: { from: before?.companyName ?? null, to: companyName },
+  });
+  revalidatePath("/settings");
+  return undefined;
+}
+
 /**
  * Updates the company-wide standard rates (D4). Affects future shifts only —
  * existing shifts keep their snapshot rates.

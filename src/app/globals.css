@@ -68,20 +68,6 @@ body {
   padding-bottom: env(safe-area-inset-bottom);
 }
 
-/* Bar chart grow animation (home Daily Spend Trend). */
-@keyframes growUp {
-  from {
-    height: 0;
-  }
-  to {
-    height: var(--target-height);
-  }
-}
-.bar-animate {
-  animation: growUp 1s ease-out forwards;
-  transform-origin: bottom;
-}
-
 /* Supervisor toggle (create-shift screen). */
 .toggle {
   appearance: none;

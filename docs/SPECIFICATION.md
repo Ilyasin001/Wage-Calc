@@ -62,6 +62,15 @@ These supersede the decisions noted against each. Requested by the product owner
 | D27 | PDF contents | Adds a **phone** column; rows are **grouped under their batch** (with the batch's times, headcount and subtotal); the **Hours** column shows **total time on site including breaks**. Pay is still calculated on hours worked *after* deducting the break — the Break column sits beside Hours and the report carries a note saying so |
 | D28 | Batch naming | Batches are numbered ("Batch 1", "Batch 2") and can optionally be given a name, e.g. "Bar staff" |
 
+### Amendments (2026-08-16) — home metrics, PDF layout, company name
+
+| # | Decision | Detail |
+|---|----------|--------|
+| D29 | Company name | Settings holds a **company/account name**, printed at the top of every PDF and in its running footer |
+| D30 | Home metrics | Adds a **monthly spend** figure (smaller heading than the 7-day headline). The Shifts tile shows **this month's** count with the last-7-days count beneath |
+| D31 | Home: outstanding | The daily spend chart is **removed**; its place shows the **largest amount owed to any one staff member**, their name, and total outstanding — linking to Payments |
+| D32 | PDF layout is size-independent | Fixed column widths and a fixed row height with single-line clipping; only individual rows are unbreakable so long shifts **flow onto further pages** instead of overprinting; table headers repeat on each page; explicit page margins and a "Page N of M" footer |
+
 ---
 
 ## 3. Wage Calculation (the heart of the app)
@@ -91,7 +100,8 @@ total_pay      = base_pay + additional_amount
 Batch         id, shift_id → Shift, name (nullable), position,
               start_at, end_at            -- one or more per shift (D22)
 User          id, email (unique), password_hash, created_at
-Settings      id (singleton), base_rate_pence, supervisor_rate_pence, updated_at
+Settings      id (singleton), company_name (nullable), base_rate_pence,
+              supervisor_rate_pence, updated_at
 Location      id, name (unique), created_at
 Staff         id, name, phone, role ENUM(regular|supervisor|manager),
               is_active (default true), created_at, updated_at
@@ -125,14 +135,14 @@ AuditLog      id, entity_type, entity_id, action ENUM(create|update|delete),
 | # | Screen | Route | Purpose |
 |---|--------|-------|---------|
 | P1 | Sign in | `/login` | Email + password. Rate-limited. |
-| P2 | **Home** | `/` | Shifts from the **last 7 days** (rolling from today): shift cards — location, date, start–finish, staff count, total wages; 7-day grand total; quick "New shift" button |
+| P2 | **Home** | `/` | Dashboard: 7-day spend with week-on-week trend, shifts this month (and last 7 days), staff hours, **month-to-date spend**, and the **largest amount owed to one staff member**. Below it, shifts from the **last 7 days** (rolling): location, date, times, staff count, total, paid state |
 | P3 | New / Edit shift | `/shifts/new`, `/shifts/[id]/edit` | Date, location (pick or add-new inline), optional description, shift start/finish, rates (prefilled from Settings, editable). Then one or more **batch** cards, each with its own start/finish and a full-screen multi-select roster picker for adding many staff at once. Staff appear as compact rows (name, hours, pay) expanding to break / additional / supervisor / optional individual times. Per-batch "break all" bulk setter, per-batch subtotal, live shift total |
 | P4 | Shift detail | `/shifts/[id]` | Read view: summary header + per-staff table (times, break, hours, rate, additional, total, paid badge); change-history panel; edit/delete actions |
 | P5 | History | `/history` | Table of all shifts ever; filters: date range, location, staff member; columns: date, location, staff count, times, total; row → shift detail |
 | P6 | **Payments** | `/payments` | Date/day-range selector (defaults to last complete pay week Mon–Sun) with the ability to **deselect individual days or individual shifts** from the selection; lists **only staff owed money**: name, shifts worked (expandable), hours, owed; grand total owed; "Mark paid" per staff and "Mark all paid"; confirmation step before marking |
 | P7 | Reports | `/reports` | Pick day / week / custom range → preview → download **PDF** (Excel removed, D26). Contents: per-shift sections (location, date, times, description) subdivided by **batch** (times, headcount, subtotal), per-staff rows with name, **phone**, times, break, **hours on site**, rate, additional and total; plus per-staff summary and grand total |
 | P8 | Staff | `/staff` | Roster list with active/inactive tabs and search; add/edit (name, phone, role); deactivate & reactivate |
-| P9 | Settings | `/settings` | Standard base & supervisor rates; location list management (rename only — removal deliberately not offered); account (change password) |
+| P9 | Settings | `/settings` | **Company name** (printed on every PDF, D29); standard base & supervisor rates; location list management (rename only — removal deliberately not offered); account (change password) |
 
 All screens: loading, empty, and error states designed; phone-first layout; large touch targets; 24-h times; £ formatting.
 

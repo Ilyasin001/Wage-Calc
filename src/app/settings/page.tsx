@@ -12,6 +12,7 @@ const LocationIcon = () => (
 const PersonIcon = () => (
   <Icon name="person" size={20} className="text-secondary" />
 );
+import { CompanyForm } from "./company-form";
 import { RatesForm } from "./rates-form";
 import { LocationsManager } from "./locations-manager";
 import { PasswordForm } from "./password-form";
@@ -31,6 +32,16 @@ export default async function SettingsPage() {
   return (
     <div className="space-y-6 pt-4">
       <h1 className="text-[20px] font-semibold text-on-surface">Settings</h1>
+
+      <section>
+        <h2 className="mb-2 flex items-center gap-2 text-[14px] font-semibold text-on-surface">
+          <PersonIcon />
+          Company
+        </h2>
+        <Card>
+          <CompanyForm companyName={settings?.companyName ?? ""} />
+        </Card>
+      </section>
 
       <section>
         <h2 className="mb-2 flex items-center gap-2 text-[14px] font-semibold text-on-surface">

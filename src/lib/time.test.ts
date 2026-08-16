@@ -3,6 +3,7 @@ import {
   addDays,
   londonToUtc,
   mondayOf,
+  monthStart,
   resolveEntryEnd,
   resolveEntryStart,
   utcToLondonDate,
@@ -37,6 +38,11 @@ describe("date helpers", () => {
   it("addDays crosses month boundaries", () => {
     expect(addDays("2026-08-31", 1)).toBe("2026-09-01");
     expect(addDays("2026-08-01", -1)).toBe("2026-07-31");
+  });
+  it("monthStart returns the first of the month", () => {
+    expect(monthStart("2026-08-15")).toBe("2026-08-01");
+    expect(monthStart("2026-01-01")).toBe("2026-01-01");
+    expect(monthStart("2026-12-31")).toBe("2026-12-01");
   });
   it("mondayOf finds the pay-week start (D13)", () => {
     expect(mondayOf("2026-08-06")).toBe("2026-08-03"); // Thursday → Monday

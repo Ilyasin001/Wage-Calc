@@ -66,6 +66,11 @@ export function addDays(dateStr: string, n: number): string {
   return new Date(d.getTime() + n * DAY_MS).toISOString().slice(0, 10);
 }
 
+/** First day of the month containing the given London date. */
+export function monthStart(dateStr: string): string {
+  return `${dateStr.slice(0, 7)}-01`;
+}
+
 /** Monday of the week containing the given London date (pay week, D13). */
 export function mondayOf(dateStr: string): string {
   const d = new Date(`${dateStr}T12:00:00Z`);
