@@ -49,3 +49,7 @@ next-env.d.ts
 # playwright
 /test-results/
 /playwright-report/
+
+# data exports — contain staff personal data and the password hash
+backup-*.json
+wage-calc-export.json
