@@ -40,24 +40,30 @@ npm run dev                 # http://localhost:3000
 
 ## Deployment (Vercel + Neon)
 
-The app deploys to Vercel with a Neon Postgres database (~£0/month at this
-scale). Because dev runs SQLite, the Postgres switch happens at deploy time:
+Runs on Vercel's and Neon's free tiers (~£0/month at this scale). Nothing in
+the code needs editing to deploy: the app, the seed script and the build all
+detect Postgres from `DATABASE_URL` and switch adapters and schema
+automatically.
 
-1. Create a [Neon](https://neon.tech) project; copy the connection string.
-2. In `prisma/schema.prisma` change `provider = "sqlite"` to
-   `provider = "postgresql"`; delete `prisma/migrations` (SQLite dialect) and
-   run `npx prisma migrate dev --name init` against the Neon URL to generate
-   Postgres migrations.
-3. `npm install @prisma/adapter-pg` and swap the adapter in `src/lib/db.ts`
-   (and `prisma/seed.ts`) from `PrismaBetterSqlite3` to `PrismaPg`.
-4. Push the repo to GitHub and import it in [Vercel](https://vercel.com).
-   Set env vars: `DATABASE_URL` (Neon), `AUTH_SECRET` (fresh
-   `openssl rand -base64 32`).
-5. Run `npx prisma migrate deploy` and `npm run seed` against production
-   (with `SEED_EMAIL`/`SEED_PASSWORD` set) — the printed credentials are the
-   accountant's login.
-6. Open the production URL on the accountant's phone → browser menu →
-   **Add to Home Screen** to install the PWA.
+**Full step-by-step guide, including moving your existing data:
+[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).** The short version:
+
+```bash
+# 1. Back up the data currently in dev.db
+npm run db:export -- backup.json
+
+# 2. Create a Neon project, then point at it and create the schema
+export DATABASE_URL="postgresql://…?sslmode=require"
+npm run migrate:prod
+
+# 3. Restore the data and create the login
+npm run db:import -- backup.json
+SEED_EMAIL="you@example.com" SEED_PASSWORD="…" npm run seed
+```
+
+Then import the repo in Vercel, set `DATABASE_URL` and `AUTH_SECRET`
+(a fresh `openssl rand -base64 32`), and deploy. Open the production URL on
+the phone → browser menu → **Add to Home Screen** to install the PWA.
 
 ## Architecture notes
 

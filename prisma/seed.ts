@@ -12,12 +12,15 @@ import "dotenv/config";
 import { randomBytes } from "node:crypto";
 import { hashSync } from "bcryptjs";
 import { PrismaBetterSqlite3 } from "@prisma/adapter-better-sqlite3";
+import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "../src/generated/prisma/client";
 
+// Same adapter choice as the app: SQLite locally, Postgres in production.
+const url = process.env.DATABASE_URL ?? "file:./dev.db";
 const prisma = new PrismaClient({
-  adapter: new PrismaBetterSqlite3({
-    url: process.env.DATABASE_URL ?? "file:./dev.db",
-  }),
+  adapter: url.startsWith("postgres")
+    ? new PrismaPg({ connectionString: url })
+    : new PrismaBetterSqlite3({ url }),
 });
 
 const email = (process.env.SEED_EMAIL ?? "accountant@wagecalc.local")

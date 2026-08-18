@@ -8,6 +8,9 @@ on:
 jobs:
   checks:
     runs-on: ubuntu-latest
+    env:
+      # SQLite for CI; the build script picks the schema from this URL.
+      DATABASE_URL: "file:./ci.db"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -18,10 +21,17 @@ jobs:
       - run: npx prisma generate
       - run: npx tsc --noEmit
       - run: npm run lint
+      # Fails if prisma/production/schema.prisma was not regenerated.
       - run: npm test
       - run: npm run build
-        env:
-          DATABASE_URL: "file:./ci.db"
+      # The production Postgres migration must stay valid SQL that Prisma can
+      # regenerate identically from the schema.
+      - name: Verify production migration is up to date
+        run: |
+          npx prisma migrate diff --from-empty \
+            --to-schema prisma/production/schema.prisma --script \
+            > /tmp/expected-init.sql
+          diff -u prisma/production/migrations/0_init/migration.sql /tmp/expected-init.sql
       - run: npx playwright install --with-deps chromium
       - run: npx playwright test
         env:

@@ -12,11 +12,23 @@ const PASSWORD = "e2e-password-123";
 /** Set by the first create test; the suite is serial so later tests reuse it. */
 let todaysShiftUrl = "";
 
-/** Date n days from today as YYYY-MM-DD, for shifts that must not clash. */
+/**
+ * Date n days from today as YYYY-MM-DD, in LOCAL time.
+ *
+ * toISOString() would format in UTC, which is a day behind local time during
+ * BST for anything after 23:00 — the app files shifts by London date, so the
+ * two must agree.
+ */
 function dayAfter(n: number): string {
   const d = new Date();
   d.setDate(d.getDate() + n);
-  return d.toISOString().slice(0, 10);
+  const pad = (x: number) => String(x).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
+/** Today as the app files it (London date). */
+function today(): string {
+  return dayAfter(0);
 }
 
 test.describe.configure({ mode: "serial" });
@@ -201,8 +213,8 @@ test.describe("authenticated journey", () => {
   test("payments: owed-only list, mark paid, double-payment protection", async ({
     page,
   }) => {
-    const today = new Date().toISOString().slice(0, 10);
-    await page.goto(`/payments?from=${today}&to=${today}`);
+    const todayStr = today();
+    await page.goto(`/payments?from=${todayStr}&to=${todayStr}`);
     await expect(page.getByText(/Total Outstanding · 3 staff/)).toBeVisible();
     await expect(page.getByText("£171.00").first()).toBeVisible();
 
@@ -251,16 +263,16 @@ test.describe("authenticated journey", () => {
   test("report endpoint returns a PDF and no longer offers Excel", async ({
     page,
   }) => {
-    const today = new Date().toISOString().slice(0, 10);
+    const todayStr = today();
     const pdf = await page.request.get(
-      `/api/reports?from=${today}&to=${today}`,
+      `/api/reports?from=${todayStr}&to=${todayStr}`,
     );
     expect(pdf.status()).toBe(200);
     expect(pdf.headers()["content-type"]).toContain("application/pdf");
     expect((await pdf.body()).length).toBeGreaterThan(1000);
 
     // The Excel export was removed; the page offers PDF only.
-    await page.goto(`/reports?from=${today}&to=${today}`);
+    await page.goto(`/reports?from=${todayStr}&to=${todayStr}`);
     await expect(
       page.getByRole("link", { name: /Download PDF/ }),
     ).toBeVisible();
