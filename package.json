@@ -14,7 +14,9 @@
     "schema:prod": "node scripts/gen-production-schema.mjs",
     "migrate:prod": "prisma migrate deploy --schema prisma/production/schema.prisma",
     "db:export": "tsx scripts/export-data.ts",
-    "db:import": "tsx scripts/import-data.ts"
+    "db:import": "tsx scripts/import-data.ts",
+    "setup:neon": "node scripts/setup-neon.mjs",
+    "gen:secret": "node scripts/gen-secret.mjs"
   },
   "dependencies": {
     "@prisma/adapter-better-sqlite3": "^7.9.1",

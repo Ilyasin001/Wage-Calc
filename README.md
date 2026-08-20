@@ -49,20 +49,17 @@ automatically.
 [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).** The short version:
 
 ```bash
-# 1. Back up the data currently in dev.db
+# 1. Back up what is in dev.db
 npm run db:export -- backup.json
 
-# 2. Create a Neon project, then point at it and create the schema
-export DATABASE_URL="postgresql://…?sslmode=require"
-npm run migrate:prod
-
-# 3. Restore the data and create the login
-npm run db:import -- backup.json
-SEED_EMAIL="you@example.com" SEED_PASSWORD="…" npm run seed
+# 2. Point at Neon and set the database up in one step:
+#    creates tables, restores the backup, creates the login
+export DATABASE_URL="postgresql://…?sslmode=require"   # PowerShell: $env:DATABASE_URL="…"
+npm run setup:neon
 ```
 
 Then import the repo in Vercel, set `DATABASE_URL` and `AUTH_SECRET`
-(a fresh `openssl rand -base64 32`), and deploy. Open the production URL on
+(a fresh one from `npm run gen:secret`), and deploy. Open the production URL on
 the phone → browser menu → **Add to Home Screen** to install the PWA.
 
 ## Architecture notes

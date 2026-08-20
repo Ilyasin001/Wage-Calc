@@ -35,48 +35,69 @@ custom domain.
 2. Copy the **pooled** connection string. It looks like:
    `postgresql://user:password@ep-xxx-pooler.eu-west-2.aws.neon.tech/neondb?sslmode=require`
 
-## Step 2 — Move your data across
+## Step 2 — Set up the database (one command)
 
-Run these from the project folder on this machine.
-
-```bash
-# Back up what is in dev.db right now
-npm run db:export -- backup.json
-```
-
-Check the printed counts look right (staff, shifts, batches, entries). Keep
-`backup.json` somewhere safe — it is a complete, human-readable backup.
+From the project folder on this machine.
 
 ```bash
-# Point at Neon and create the tables
-export DATABASE_URL="postgresql://…?sslmode=require"   # PowerShell: $env:DATABASE_URL="…"
-npm run migrate:prod
-
-# Copy the data in
-npm run db:import -- backup.json
+# Take a fresh backup of what is in dev.db right now
+npm run db:export -- backup-$(date +%F).json
 ```
 
-`db:import` refuses to run if the target already contains shifts, so it cannot
-double-import.
+Then point at Neon and run the setup. **PowerShell:**
 
-## Step 3 — Create the production login
+```powershell
+$env:DATABASE_URL="postgresql://…?sslmode=require"
+npm run setup:neon
+```
 
-Still pointing at Neon:
+**bash:**
 
 ```bash
-SEED_EMAIL="you@example.com" SEED_PASSWORD="a-long-password" npm run seed
+export DATABASE_URL="postgresql://…?sslmode=require"
+npm run setup:neon
 ```
 
-It prints the credentials. **Save them** — this account is the only way in.
-Re-running `npm run seed` resets the password, which is also the documented
-recovery procedure if it is ever forgotten.
+That single command:
 
-> Unset `DATABASE_URL` afterwards (or open a new terminal) so local work goes
+1. creates every table on Neon (`prisma migrate deploy`),
+2. restores the newest `backup-*.json` it finds,
+3. creates the login account and prints the credentials.
+
+It stops at the first failure and tells you where, and it is safe to re-run:
+the migration is idempotent, the import refuses to run against a database
+that already holds shifts, and seeding upserts.
+
+**Save the printed credentials** — that account is the only way in. To choose
+them yourself, set `SEED_EMAIL` and `SEED_PASSWORD` before running.
+
+> Open a new terminal afterwards (or unset `DATABASE_URL`) so local work goes
 > back to `dev.db` rather than production.
+
+<details>
+<summary>Running the three steps separately</summary>
+
+```bash
+npm run migrate:prod                 # create the tables
+npm run db:import -- backup.json     # restore the data
+npm run seed                         # create the login
+```
+</details>
 
 ## Step 4 — Deploy to Vercel
 
-1. Push this repository to GitHub.
+Either import the repo in the dashboard, or use the CLI:
+
+```bash
+npx vercel@latest link          # connect this folder to a Vercel project
+npx vercel@latest env add DATABASE_URL production   # paste the Neon string
+npx vercel@latest env add AUTH_SECRET production    # paste: npm run gen:secret
+npx vercel@latest deploy --prod
+```
+
+Via the dashboard instead:
+
+1. Push this repository to GitHub (already done if `git status` is clean).
 2. In Vercel: **Add New → Project**, import the repository. Framework is
    detected as Next.js; leave the build settings alone.
 3. Add two Environment Variables (Production **and** Preview):
@@ -84,7 +105,7 @@ recovery procedure if it is ever forgotten.
    | Name | Value |
    |---|---|
    | `DATABASE_URL` | the Neon pooled connection string |
-   | `AUTH_SECRET` | a **fresh** secret: `openssl rand -base64 32` |
+   | `AUTH_SECRET` | a **fresh** secret: `npm run gen:secret` |
 
    Use a different `AUTH_SECRET` from your local one.
 4. Deploy.
