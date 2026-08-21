@@ -77,7 +77,21 @@ the migration is idempotent, the import refuses to run against a database
 that already holds shifts, and seeding upserts.
 
 **Save the printed credentials** — that account is the only way in. To choose
-them yourself, set `SEED_EMAIL` and `SEED_PASSWORD` before running.
+them yourself, pass them as flags — more reliable than environment
+variables, which are easy to lose between shells:
+
+```bash
+npm run seed -- --email you@example.com --password "a-long-password"
+```
+
+If the credentials come back as `accountant@wagecalc.local` with a generated
+password, the flags or variables did not reach the process. The seed also
+prints **which database it wrote to** — with `DATABASE_URL` pointing at Neon
+that line reads `PRODUCTION (Neon)`. Supplying a different email renames the
+single account rather than adding a second one.
+
+> A password passed as a flag lands in your shell history. Use
+> `SEED_EMAIL`/`SEED_PASSWORD` instead if that matters.
 
 > Open a new terminal afterwards (or unset `DATABASE_URL`) so local work goes
 > back to `dev.db` rather than production.

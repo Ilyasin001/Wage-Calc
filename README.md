@@ -24,8 +24,10 @@ npm run seed                # creates the account — CREDENTIALS ARE PRINTED, s
 npm run dev                 # http://localhost:3000
 ```
 
-**Forgotten password:** run `npm run seed` again (optionally with
-`SEED_PASSWORD` set) — it resets the account password and prints it.
+**Forgotten password:** run `npm run seed` again — it resets the password and
+prints it. Choose the credentials with
+`npm run seed -- --email you@example.com --password "…"`. The seed always
+prints which database it wrote to.
 
 ## Commands
 
