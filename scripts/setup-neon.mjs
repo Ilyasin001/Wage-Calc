@@ -83,6 +83,11 @@ function run(label, file, args) {
 const host = url.replace(/^[^@]*@/, "").split(/[/?]/)[0];
 console.log(`\nWage-Calc — production setup against ${host}`);
 
+// The generated client is provider-specific — build the Postgres one first,
+// otherwise the import and seed steps fail with "adapter @prisma/adapter-pg
+// is not compatible with the provider sqlite".
+run("0/3  Preparing the Postgres client", path.join("scripts", "prisma-generate.mjs"), []);
+
 run("1/3  Creating tables", PRISMA, [
   "migrate",
   "deploy",

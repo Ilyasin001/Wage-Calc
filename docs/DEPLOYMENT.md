@@ -32,8 +32,16 @@ custom domain.
 
 1. Sign up at [neon.tech](https://neon.tech) and create a project (region:
    **EU (London)** or **EU (Frankfurt)** — keep it close to the accountant).
-2. Copy the **pooled** connection string. It looks like:
-   `postgresql://user:password@ep-xxx-pooler.eu-west-2.aws.neon.tech/neondb?sslmode=require`
+2. Copy **both** connection strings from the dashboard — you need each for a
+   different job:
+
+   | String | Contains | Use it for |
+   |---|---|---|
+   | **Direct** | no `-pooler` | migrations and the setup/export/import scripts below |
+   | **Pooled** | `-pooler` in the host | the `DATABASE_URL` you give Vercel (serverless runtime) |
+
+   Migrations and schema changes need a direct session; the pooled endpoint
+   runs through PgBouncer in transaction mode and is not reliable for DDL.
 
 ## Step 2 — Set up the database (one command)
 
@@ -104,7 +112,7 @@ Via the dashboard instead:
 
    | Name | Value |
    |---|---|
-   | `DATABASE_URL` | the Neon pooled connection string |
+   | `DATABASE_URL` | the Neon **pooled** connection string (with `-pooler`) |
    | `AUTH_SECRET` | a **fresh** secret: `npm run gen:secret` |
 
    Use a different `AUTH_SECRET` from your local one.
@@ -116,6 +124,60 @@ Open the production URL on the accountant's phone → browser menu →
 **Add to Home Screen**. It then launches like a native app.
 
 ---
+
+## Checking what is actually in the database
+
+At any point, point `DATABASE_URL` at a database and run:
+
+```bash
+npm run verify:db
+```
+
+It is read-only and prints every expected table with its row count, flags
+anything missing or unexpected, and says whether the schema was created by
+Prisma. A healthy production database looks like this:
+
+```
+Expected tables
+  User         1 rows
+  Settings     1 rows
+  Location     6 rows
+  Staff        72 rows
+  Shift        9 rows
+  Batch        22 rows
+  ShiftEntry   191 rows
+  AuditLog     130 rows
+Migration history: 1 applied
+Verdict: schema looks correct.
+```
+
+Tables in a `neon_auth` schema are Neon's own Auth feature. This app does
+its own authentication and ignores them entirely.
+
+## Recovering a bad import
+
+If a GUI or database extension has been used to load `backup-*.json`
+directly, you get **one table with one row**, whose columns are `users`,
+`settings`, `staff` and so on — those are the JSON file's top-level keys,
+not the app's schema. The app needs **eight** tables. `npm run verify:db`
+will report the expected tables as MISSING.
+
+Never import the backup with a GUI. `npm run db:import` exists because the
+rows have to be spread across the eight tables in foreign-key order.
+
+To start again — this destroys only the Neon copy; `dev.db` and your
+`backup-*.json` are untouched:
+
+```bash
+export DATABASE_URL="<DIRECT neon string>"
+npx prisma migrate reset --force     # drops and rebuilds the schema
+npm run db:import -- backup-YYYY-MM-DD.json
+npm run seed
+npm run verify:db                     # confirm
+```
+
+Drop any stray table the GUI left behind from the Neon SQL editor:
+`DROP TABLE "the_table_name";`
 
 ## After deploying
 
@@ -146,6 +208,16 @@ dashboard. Database changes do not roll back with it, so take an export before
 any migration.
 
 ---
+
+## Why no code changes are needed
+
+The generated Prisma client is provider-specific — a client built for SQLite
+cannot talk to Postgres, and vice versa. Every database script
+(`setup:neon`, `seed`, `db:import`, `db:export`, `verify:db`,
+`migrate:prod`) regenerates it for whatever `DATABASE_URL` points at
+before running, and `prisma.config.ts` selects the matching schema and
+migration history the same way. The test suites pin SQLite explicitly, so
+they keep passing even while `.env` points at production.
 
 ## Known limitations
 

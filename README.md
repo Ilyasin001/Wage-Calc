@@ -36,6 +36,7 @@ npm run dev                 # http://localhost:3000
 | `npx playwright test` | E2E suite (own DB on :3001; stop the dev server first) |
 | `npm run typecheck` / `npm run lint` | Static checks |
 | `npm run seed` | Create/reset the accountant account + settings |
+| `npm run verify:db` | Read-only: what tables/rows the current DATABASE_URL holds |
 | `npm run build` / `npm start` | Production build / serve |
 
 ## Deployment (Vercel + Neon)
@@ -54,7 +55,7 @@ npm run db:export -- backup.json
 
 # 2. Point at Neon and set the database up in one step:
 #    creates tables, restores the backup, creates the login
-export DATABASE_URL="postgresql://…?sslmode=require"   # PowerShell: $env:DATABASE_URL="…"
+export DATABASE_URL="postgresql://…?sslmode=require"   # the DIRECT string, not the pooled one
 npm run setup:neon
 ```
 

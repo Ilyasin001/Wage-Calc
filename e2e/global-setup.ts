@@ -13,6 +13,9 @@ export default async function globalSetup() {
     SEED_EMAIL: "e2e@wagecalc.local",
     SEED_PASSWORD: "e2e-password-123",
   };
+  // The generated client is provider-specific and .env may point at Postgres;
+  // the E2E suite always runs on SQLite, so pin it.
+  execSync("node scripts/prisma-generate.mjs sqlite", { env, stdio: "pipe" });
   execSync(`npx prisma db push --url "${url}"`, { env, stdio: "pipe" });
   execSync("npx tsx prisma/seed.ts", { env, stdio: "pipe" });
 }

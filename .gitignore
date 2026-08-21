@@ -53,3 +53,6 @@ next-env.d.ts
 # data exports — contain staff personal data and the password hash
 backup-*.json
 wage-calc-export.json
+
+.vercel
+.env*
