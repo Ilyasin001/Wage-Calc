@@ -56,3 +56,6 @@ wage-calc-export.json
 
 .vercel
 .env*
+
+# scratch
+commitmsg.tmp
