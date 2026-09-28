@@ -204,16 +204,3 @@ requirement changed, with each amendment recorded against the decision it
 supersedes. It is probably the most useful document here for understanding
 how the project was approached.
 
-## Contributing
-
-This is a personal project built for a specific user, so it is not looking for
-feature contributions — but bug reports and questions are welcome via
-[issues](https://github.com/Ilyasin001/Wage-Calc/issues).
-
-If you are poking at the code: `npm test` and `npx playwright test` should
-both pass before and after any change, and CI enforces typecheck, lint and a
-production build.
-
-## Licence
-
-[MIT](LICENSE).
